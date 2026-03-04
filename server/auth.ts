@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import pool from './db.js';
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'lumina_bible_secret_key_12345';
+import { JWT_SECRET } from './config.js';
 
 // Signup
 router.post('/signup', async (req: Request, res: Response) => {
