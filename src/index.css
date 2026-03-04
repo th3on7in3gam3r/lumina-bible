@@ -1,0 +1,315 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", serif;
+
+  --color-primary: var(--theme-primary);
+  --color-primary-400: var(--theme-primary-400);
+  --color-primary-500: var(--theme-primary-500);
+  --color-primary-600: var(--theme-primary-600);
+  --color-primary-900: var(--theme-primary-900);
+  --color-primary-950: var(--theme-primary-950);
+}
+
+@layer base {
+  :root {
+    /* Emerald Theme (Default) */
+    --theme-primary: #10b981;
+    --theme-primary-400: #34d399;
+    --theme-primary-500: #10b981;
+    --theme-primary-600: #059669;
+    --theme-primary-900: #064e3b;
+    --theme-primary-950: #022c22;
+  }
+
+  /* Rose Theme */
+  .theme-rose {
+    --theme-primary: #f43f5e;
+    --theme-primary-400: #fb7185;
+    --theme-primary-500: #f43f5e;
+    --theme-primary-600: #e11d48;
+    --theme-primary-900: #881337;
+    --theme-primary-950: #4c0519;
+  }
+
+  /* Amber Theme */
+  .theme-amber {
+    --theme-primary: #f59e0b;
+    --theme-primary-400: #fbbf24;
+    --theme-primary-500: #f59e0b;
+    --theme-primary-600: #d97706;
+    --theme-primary-900: #78350f;
+    --theme-primary-950: #451a03;
+  }
+
+  /* Blue Theme */
+  .theme-blue {
+    --theme-primary: #3b82f6;
+    --theme-primary-400: #60a5fa;
+    --theme-primary-500: #3b82f6;
+    --theme-primary-600: #2563eb;
+    --theme-primary-900: #1e3a8a;
+    --theme-primary-950: #172554;
+  }
+
+  /* Purple Theme */
+  .theme-purple {
+    --theme-primary: #a855f7;
+    --theme-primary-400: #c084fc;
+    --theme-primary-500: #a855f7;
+    --theme-primary-600: #9333ea;
+    --theme-primary-900: #581c87;
+    --theme-primary-950: #3b0764;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+body {
+  @apply antialiased;
+}
+
+.prose sup {
+  @apply top-[-0.5em] text-[0.6em] font-bold;
+}
+
+/* ─── Light Mode Global Overrides ─────────────────────────────── */
+.light-mode {
+  color: #111827;
+}
+
+/* Glass cards → solid white */
+.light-mode .bg-white\/5,
+.light-mode .bg-white\/10,
+.light-mode .bg-white\/15,
+.light-mode .bg-white\/20 {
+  background-color: rgba(255, 255, 255, 0.92) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Dark panel backgrounds → clean light */
+.light-mode .bg-black\/20,
+.light-mode .bg-black\/30,
+.light-mode .bg-black\/40 {
+  background-color: rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Navigator / modal dark bg override */
+.light-mode .bg-\[#0d1f17\] {
+  background-color: #ffffff !important;
+}
+
+.light-mode .bg-\[#1a1a1a\]\/90,
+.light-mode .bg-\[#1a1a1a\] {
+  background-color: #f9fafb !important;
+}
+
+/* Dark text → dark-on-light */
+.light-mode .text-white {
+  color: #111827 !important;
+}
+
+.light-mode .text-gray-100 {
+  color: #1f2937 !important;
+}
+
+.light-mode .text-gray-200 {
+  color: #374151 !important;
+}
+
+.light-mode .text-gray-300 {
+  color: #4b5563 !important;
+}
+
+.light-mode .text-gray-400 {
+  color: #6b7280 !important;
+}
+
+.light-mode .text-gray-500 {
+  color: #9ca3af !important;
+}
+
+/* White/50 dim text → dark dim */
+.light-mode .text-white\/50 {
+  color: rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Watermark initials (grey is already good, just tweak opacity) */
+.light-mode .text-gray-500\/20 {
+  color: rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Borders */
+.light-mode .border-white\/5,
+.light-mode .border-white\/10,
+.light-mode .border-white\/20 {
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Header */
+.light-mode header {
+  background-color: rgba(255, 255, 255, 0.88) !important;
+  border-color: rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Nav pill */
+.light-mode nav>div {
+  background-color: rgba(255, 255, 255, 0.8) !important;
+  backdrop-filter: blur(24px) !important;
+  border-color: rgba(0, 0, 0, 0.05) !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08) !important;
+}
+
+.light-mode nav>div>div {
+  background-color: transparent !important;
+}
+
+/* Divider lines */
+.light-mode hr {
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Search inputs */
+.light-mode input {
+  background-color: rgba(0, 0, 0, 0.04) !important;
+  color: #111827 !important;
+}
+
+.light-mode input::placeholder {
+  color: #9ca3af !important;
+}
+
+/* ─── Atmospheric Reading Themes ─────────────────────────────── */
+
+/* Waters - Psalms */
+.atmos-waters {
+  background: linear-gradient(180deg, #0f172a 0%, #1e3a8a 50%, #0c4a6e 100%) !important;
+  transition: all 2s ease-in-out;
+}
+
+.atmos-waters .bg-white\/5 {
+  background-color: rgba(255, 255, 255, 0.03) !important;
+  backdrop-filter: blur(12px) !important;
+  border-color: rgba(56, 189, 248, 0.2) !important;
+}
+
+.atmos-waters::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: url("https://www.transparenttextures.com/patterns/cubes.png");
+  /* Simple ripple-like pattern */
+  opacity: 0.05;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Desert - Exodus, Numbers, etc. */
+.atmos-desert {
+  background: linear-gradient(180deg, #451a03 0%, #78350f 50%, #92400e 100%) !important;
+  transition: all 2s ease-in-out;
+}
+
+.atmos-desert .bg-white\/5 {
+  background-color: rgba(251, 191, 36, 0.05) !important;
+  backdrop-filter: blur(8px) !important;
+  border-color: rgba(251, 191, 36, 0.1) !important;
+}
+
+.atmos-desert .text-gray-300 {
+  color: #fde68a !important;
+}
+
+/* Morning - Gospels, Acts */
+.atmos-morning {
+  background: linear-gradient(180deg, #fffbeb 0%, #fef3c7 50%, #fde68a 100%) !important;
+  transition: all 2s ease-in-out;
+}
+
+.atmos-morning .bg-white\/5 {
+  background-color: rgba(255, 255, 255, 0.8) !important;
+  backdrop-filter: blur(4px) !important;
+  border-color: rgba(251, 191, 36, 0.2) !important;
+  color: #1e293b !important;
+}
+
+.atmos-morning .text-white,
+.atmos-morning .text-gray-300 {
+  color: #451a03 !important;
+}
+
+.atmos-morning .text-\[var\(--theme-primary\)\] {
+  color: #b45309 !important;
+}
+
+/* ─── Scribe Mode (The Scribe's Focus) ───────────────────────── */
+
+.scribe-mode {
+  overflow: hidden !important;
+  cursor: crosshair;
+}
+
+.scribe-mode header,
+.scribe-mode nav,
+.scribe-mode .floating-action-bar,
+.scribe-mode .nav-buttons,
+.scribe-mode .progress-bar {
+  display: none !important;
+}
+
+.scribe-parchment {
+  background-color: #f4e4bc !important;
+  background-image: url("https://www.transparenttextures.com/patterns/papyros.png") !important;
+  transition: all 1s ease-in-out;
+}
+
+.scribe-parchment .bible-content {
+  color: #3e2723 !important;
+  font-family: var(--font-serif);
+  line-height: 2 !important;
+  letter-spacing: 0.02em !important;
+  max-width: 800px !important;
+  margin: 0 auto !important;
+}
+
+.scribe-stone {
+  background-color: #374151 !important;
+  background-image: url("https://www.transparenttextures.com/patterns/stardust.png") !important;
+  transition: all 1s ease-in-out;
+}
+
+.scribe-stone .bible-content {
+  color: #e5e7eb !important;
+  font-family: var(--font-serif);
+  line-height: 2.2 !important;
+  letter-spacing: 0.05em !important;
+  max-width: 850px !important;
+  margin: 0 auto !important;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.scribe-mode .bible-content sup {
+  opacity: 0.3;
+}
+
+.scribe-mode .verse-item {
+  margin-bottom: 2rem !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.scribe-mode .verse-text {
+  font-size: 1.25rem !important;
+}

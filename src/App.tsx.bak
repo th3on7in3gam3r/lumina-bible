@@ -1,0 +1,3084 @@
+import { useState, useEffect, useMemo, useRef, FormEvent } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import {
+  ChevronDown,
+  Volume2,
+  Globe,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  BookOpen,
+  Home,
+  Calendar,
+  CheckCircle2,
+  Bell,
+  BellOff,
+  Sparkles,
+  ArrowRight,
+  Bookmark,
+  BookmarkCheck,
+  Mail,
+  Lock,
+  Moon,
+  User,
+  Image as ImageIcon,
+  Copy,
+  Layout,
+  Star,
+  Settings,
+  Pencil,
+  Trash2,
+  Share2,
+  CreditCard,
+  HelpCircle,
+  Info,
+  LogOut,
+  Camera,
+  Eye,
+  EyeOff,
+  ArrowLeft,
+  MessageSquare,
+  Heart,
+  FileText,
+  Type,
+  Check,
+  Share,
+  Highlighter
+} from 'lucide-react';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+import { BIBLE_BOOKS, READING_PLANS, DAILY_VERSES, type BibleBook, type ReadingPlan } from './constants';
+import { searchBible, generateVerseImage, type SearchResult, type AISearchResponse } from './services/geminiService';
+import { fetchChapterVerses, TRANSLATION_MAP } from './services/bibleService';
+
+// Utility for tailwind classes
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+interface Verse {
+  book_id: string;
+  book_name: string;
+  chapter: number;
+  verse: number;
+  text: string;
+}
+
+interface BibleResponse {
+  reference: string;
+  verses: Verse[];
+  text: string;
+  translation_id: string;
+  translation_name: string;
+  translation_note: string;
+}
+
+const TRANSLATIONS = [
+  { id: 'web', name: 'WEB', fullName: 'World English Bible' },
+  { id: 'webbe', name: 'WEBBE', fullName: 'WEB British Edition' },
+  { id: 'asv', name: 'ASV', fullName: 'American Standard Version' },
+  { id: 'kjv', name: 'KJV', fullName: 'King James Version' },
+  { id: 'fbv', name: 'FBV', fullName: 'Free Bible Version' },
+  { id: 'lsv', name: 'LSV', fullName: 'Literal Standard Version' },
+];
+
+type Tab = 'home' | 'bible' | 'search' | 'plans' | 'profile' | 'gallery';
+
+export default function App() {
+  // Auth State
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authView, setAuthView] = useState<'intro' | 'login' | 'signup'>('intro');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Navigation State
+  const [activeTab, setActiveTab] = useState<Tab>('home');
+
+  // Bible Reader State
+  const [currentBook, setCurrentBook] = useState<BibleBook>(BIBLE_BOOKS[18]); // Default to Psalms
+  const [currentChapter, setCurrentChapter] = useState(23); // Default to Psalm 23
+  const [currentTranslation, setCurrentTranslation] = useState(TRANSLATIONS[0]);
+  const [verses, setVerses] = useState<Verse[]>([]);
+  const [loading, setLoading] = useState(false);
+  const isFetchingRef = useRef(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // UI State
+  const [showNavigator, setShowNavigator] = useState(false);
+  const [navigatorTab, setNavigatorTab] = useState<'book' | 'chapter' | 'verse' | 'version'>('book');
+  const [selectedVerseId, setSelectedVerseId] = useState<number | null>(null);
+  const [copiedVerseId, setCopiedVerseId] = useState<number | null>(null);
+  const [testamentFilter, setTestamentFilter] = useState<'OT' | 'NT'>('OT');
+  const [bookSearchQuery, setBookSearchQuery] = useState('');
+  const [isReading, setIsReading] = useState(false);
+  const [showNavButtons, setShowNavButtons] = useState(false);
+
+  // Verse of the Day State
+  const [votd, setVotd] = useState(DAILY_VERSES[0]);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+
+  // Search State
+  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [aiAnswer, setAiAnswer] = useState<string | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Profile State
+  const [promoEmails, setPromoEmails] = useState(true);
+  const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large'>('medium');
+  const [readingMode, setReadingMode] = useState<'light' | 'sepia' | 'dark'>('light');
+  const [themeColor, setThemeColor] = useState<'emerald' | 'amber' | 'rose' | 'blue' | 'purple'>('emerald');
+  const [profilePhoto, setProfilePhoto] = useState('https://picsum.photos/seed/user/200/200');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [fontEmphasis, setFontEmphasis] = useState<'normal' | 'bold' | 'italic'>('normal');
+  const [profileSubView, setProfileSubView] = useState<'main' | 'saved'>('main');
+  const [savedSearchQuery, setSavedSearchQuery] = useState('');
+  const [savedFilter, setSavedFilter] = useState<'all' | 'bookmarks' | 'notes'>('all');
+
+  const firstName = useMemo(() => name ? name.split(' ')[0] : 'Jerless', [name]);
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Morning';
+    if (hour < 18) return 'Afternoon';
+    return 'Evening';
+  }, []);
+
+  // Plans State
+  const [completedChapters, setCompletedChapters] = useState<Record<string, boolean>>({});
+
+  // Bookmarks State
+  const [bookmarks, setBookmarks] = useState<Record<string, { text: string, reference: string }>>({});
+
+  // Notes State
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [editingNoteVerse, setEditingNoteVerse] = useState<Verse | null>(null);
+  const [tempNote, setTempNote] = useState('');
+
+  // Highlights State
+  const [highlights, setHighlights] = useState<Record<string, string>>(() => {
+    const saved = localStorage.getItem('bible_highlights');
+    return saved ? JSON.parse(saved) : {};
+  });
+  const [showHighlighterMenu, setShowHighlighterMenu] = useState(false);
+
+  const chapterProgress = useMemo(() => {
+    return (currentChapter / currentBook.chapters) * 100;
+  }, [currentChapter, currentBook.chapters]);
+
+  const HIGHLIGHT_COLORS = [
+    { id: 'yellow', bg: 'bg-yellow-200/60', darkBg: 'dark:bg-yellow-500/30', dot: 'bg-yellow-400' },
+    { id: 'green', bg: 'bg-green-200/60', darkBg: 'dark:bg-green-500/30', dot: 'bg-green-400' },
+    { id: 'blue', bg: 'bg-blue-200/60', darkBg: 'dark:bg-blue-500/30', dot: 'bg-blue-400' },
+    { id: 'purple', bg: 'bg-purple-200/60', darkBg: 'dark:bg-purple-500/30', dot: 'bg-purple-400' },
+    { id: 'orange', bg: 'bg-orange-200/60', darkBg: 'dark:bg-orange-500/30', dot: 'bg-orange-400' },
+  ];
+
+  const toggleHighlight = (v: Verse, colorId: string) => {
+    const key = `${v.book_name}-${v.chapter}:${v.verse}`;
+    const newHighlights = { ...highlights };
+    if (newHighlights[key] === colorId) {
+      delete newHighlights[key];
+    } else {
+      newHighlights[key] = colorId;
+    }
+    setHighlights(newHighlights);
+    localStorage.setItem('bible_highlights', JSON.stringify(newHighlights));
+  };
+
+  // Visualizer State
+  const [visualizingVerse, setVisualizingVerse] = useState<Verse | null>(null);
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [gallery, setGallery] = useState<{ id: string, url: string, reference: string, text: string, date: string }[]>(() => {
+    const saved = localStorage.getItem('lumina_gallery');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('lumina_gallery', JSON.stringify(gallery));
+  }, [gallery]);
+
+  useEffect(() => {
+    // Load progress from localStorage
+    const savedProgress = localStorage.getItem('bible_progress');
+    if (savedProgress) {
+      setCompletedChapters(JSON.parse(savedProgress));
+    }
+
+    // Check auth status
+    const authStatus = localStorage.getItem('bible_auth');
+    if (authStatus === 'true') {
+      setIsAuthenticated(true);
+    }
+
+    // Load bookmarks from localStorage
+    const savedBookmarks = localStorage.getItem('bible_bookmarks');
+    if (savedBookmarks) {
+      setBookmarks(JSON.parse(savedBookmarks));
+    }
+
+    // Load notes from localStorage
+    const savedNotes = localStorage.getItem('bible_notes');
+    if (savedNotes) {
+      setNotes(JSON.parse(savedNotes));
+    }
+
+    // Load font size from localStorage
+    const savedFontSize = localStorage.getItem('bible_font_size');
+    if (savedFontSize) {
+      setFontSize(savedFontSize as 'small' | 'medium' | 'large');
+    }
+
+    // Load font emphasis from localStorage
+    const savedFontEmphasis = localStorage.getItem('bible_font_emphasis');
+    if (savedFontEmphasis) {
+      setFontEmphasis(savedFontEmphasis as 'normal' | 'bold' | 'italic');
+    }
+
+    // Load reading mode from localStorage
+    const savedReadingMode = localStorage.getItem('bible_reading_mode');
+    if (savedReadingMode) {
+      setReadingMode(savedReadingMode as 'light' | 'sepia' | 'dark');
+    }
+
+    // Load theme color from localStorage
+    const savedThemeColor = localStorage.getItem('bible_theme_color');
+    if (savedThemeColor) {
+      setThemeColor(savedThemeColor as any);
+    }
+
+    // Set Verse of the Day based on date
+    const now = new Date();
+    const start = new Date(now.getFullYear(), 0, 0);
+    const diff = now.getTime() - start.getTime();
+    const oneDay = 1000 * 60 * 60 * 24;
+    const dayOfYear = Math.floor(diff / oneDay);
+    setVotd(DAILY_VERSES[dayOfYear % DAILY_VERSES.length]);
+  }, []);
+
+  const toggleProgress = (book: string, chapter: number) => {
+    const key = `${book}-${chapter}`;
+    const newProgress = { ...completedChapters, [key]: !completedChapters[key] };
+    setCompletedChapters(newProgress);
+    localStorage.setItem('bible_progress', JSON.stringify(newProgress));
+  };
+
+  const toggleBookmark = (verse: Verse) => {
+    const key = `${verse.book_name}-${verse.chapter}:${verse.verse}`;
+    const newBookmarks = { ...bookmarks };
+    if (newBookmarks[key]) {
+      delete newBookmarks[key];
+    } else {
+      newBookmarks[key] = {
+        text: verse.text,
+        reference: `${verse.book_name} ${verse.chapter}:${verse.verse}`
+      };
+    }
+    setBookmarks(newBookmarks);
+    localStorage.setItem('bible_bookmarks', JSON.stringify(newBookmarks));
+  };
+
+  const deleteBookmark = (key: string) => {
+    const newBookmarks = { ...bookmarks };
+    delete newBookmarks[key];
+    setBookmarks(newBookmarks);
+    localStorage.setItem('bible_bookmarks', JSON.stringify(newBookmarks));
+  };
+
+  const deleteNote = (key: string) => {
+    const newNotes = { ...notes };
+    delete newNotes[key];
+    setNotes(newNotes);
+    localStorage.setItem('bible_notes', JSON.stringify(newNotes));
+  };
+
+  const handleOpenNote = (verse: Verse | { book_name: string, chapter: number, verse: number, text: string }) => {
+    const key = `${verse.book_name}-${verse.chapter}:${verse.verse}`;
+    setEditingNoteVerse(verse as Verse);
+    setTempNote(notes[key] || '');
+  };
+
+  const handleVisualize = async (verse: Verse) => {
+    setVisualizingVerse(verse);
+    setIsGeneratingImage(true);
+    setGeneratedImage(null);
+    const reference = `${currentBook.name} ${currentChapter}:${verse.verse}`;
+    const imageUrl = await generateVerseImage(verse.text, reference);
+    setGeneratedImage(imageUrl);
+    setIsGeneratingImage(false);
+
+    if (imageUrl) {
+      const newItem = {
+        id: Date.now().toString(),
+        url: imageUrl,
+        reference,
+        text: verse.text,
+        date: new Date().toLocaleDateString()
+      };
+      setGallery(prev => [newItem, ...prev]);
+    }
+  };
+
+  const selectedVerseClass = useMemo(() => {
+    if (readingMode === 'dark') return "bg-emerald-500/15 ring-2 ring-emerald-500/40 shadow-sm z-10";
+    if (readingMode === 'sepia') return "bg-emerald-900/15 ring-2 ring-emerald-500/40 shadow-sm z-10";
+    return "bg-emerald-100/50 ring-2 ring-emerald-500/30 shadow-sm z-10";
+  }, [readingMode]);
+
+  const saveNote = () => {
+    if (!editingNoteVerse) return;
+    const key = `${editingNoteVerse.book_name}-${editingNoteVerse.chapter}:${editingNoteVerse.verse}`;
+    const newNotes = { ...notes };
+    if (tempNote.trim()) {
+      newNotes[key] = tempNote;
+    } else {
+      delete newNotes[key];
+    }
+    setNotes(newNotes);
+    localStorage.setItem('bible_notes', JSON.stringify(newNotes));
+    setEditingNoteVerse(null);
+  };
+
+  const copyVerse = async (v: Verse | { book_name: string, chapter: number, verse: number, text: string }) => {
+    const fullText = `${v.book_name} ${v.chapter}:${v.verse} – ${v.text}`;
+    try {
+      await navigator.clipboard.writeText(fullText);
+      setCopiedVerseId(v.verse);
+      setTimeout(() => setCopiedVerseId(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  const shareVerse = async (v: Verse | { book_name: string, chapter: number, verse: number, text: string }) => {
+    const fullText = `${v.book_name} ${v.chapter}:${v.verse} – ${v.text}`;
+    const shareData = {
+      title: `${v.book_name} ${v.chapter}:${v.verse}`,
+      text: fullText,
+      url: window.location.href,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(fullText);
+        setCopiedVerseId(v.verse);
+        setTimeout(() => setCopiedVerseId(null), 2000);
+      }
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        console.error('Error sharing:', err);
+      }
+    }
+  };
+
+  const toggleVotdBookmark = () => {
+    const match = votd.reference.match(/^(.+?)\s+(\d+):(\d+)$/);
+    if (match) {
+      const book_name = match[1];
+      const chapter = parseInt(match[2]);
+      const verseNum = parseInt(match[3]);
+
+      const verseObj = {
+        book_id: '',
+        book_name,
+        chapter,
+        verse: verseNum,
+        text: votd.text
+      };
+      toggleBookmark(verseObj as Verse);
+    }
+  };
+
+  const shareVotd = async () => {
+    const shareData = {
+      title: 'Verse of the Day',
+      text: `"${votd.text}" - ${votd.reference}`,
+      url: window.location.href,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(`${shareData.text}\nShared from Lumina Bible App`);
+        // We could use a toast here, but for now alert is fine or just silent success
+      }
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        console.error('Error sharing:', err);
+      }
+    }
+  };
+
+  const isVotdBookmarked = useMemo(() => {
+    const match = votd.reference.match(/^(.+?)\s+(\d+):(\d+)$/);
+    if (match) {
+      const key = `${match[1]}-${match[2]}:${match[3]}`;
+      return !!bookmarks[key];
+    }
+    return false;
+  }, [votd, bookmarks]);
+
+  const handleFontSizeChange = (size: 'small' | 'medium' | 'large') => {
+    setFontSize(size);
+    localStorage.setItem('bible_font_size', size);
+  };
+
+  const handleFontEmphasisChange = (emphasis: 'normal' | 'bold' | 'italic') => {
+    setFontEmphasis(emphasis);
+    localStorage.setItem('bible_font_emphasis', emphasis);
+  };
+
+  const updateReadingMode = (newMode: 'light' | 'sepia' | 'dark') => {
+    setReadingMode(newMode);
+    localStorage.setItem('bible_reading_mode', newMode);
+  };
+
+  const updateThemeColor = (color: 'emerald' | 'amber' | 'rose' | 'blue' | 'purple') => {
+    setThemeColor(color);
+    localStorage.setItem('bible_theme_color', color);
+  };
+
+  const handleAuth = (e: FormEvent) => {
+    e.preventDefault();
+    // Simulate auth
+    setIsAuthenticated(true);
+    localStorage.setItem('bible_auth', 'true');
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    localStorage.removeItem('bible_auth');
+    setAuthView('intro');
+  };
+
+  const fetchVerses = async (book: BibleBook, chapter: number, translation: string) => {
+    // Prevent overlapping fetch requests
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+    setLoading(true);
+    setError(null);
+
+    try {
+      if (!book.apiId) throw new Error("API ID missing for this book.");
+
+      const realVerses = await fetchChapterVerses(book.apiId, chapter, translation, book.name);
+
+      if (realVerses && realVerses.length > 0) {
+        setVerses(realVerses);
+      } else {
+        throw new Error('No verses found for this chapter.');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not load scripture. Please try again.');
+      console.error('Fetch Error:', err);
+    } finally {
+      setLoading(false);
+      isFetchingRef.current = false;
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'bible') {
+      fetchVerses(currentBook, currentChapter, currentTranslation.id);
+    }
+    // Stop reading if tab or chapter changes
+    window.speechSynthesis.cancel();
+    setIsReading(false);
+  }, [currentBook.name, currentChapter, currentTranslation.id, activeTab]);
+
+  // Safety timeout for loading state
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (loading) {
+      timer = setTimeout(() => {
+        if (loading) {
+          setLoading(false);
+          isFetchingRef.current = false;
+          if (!verses.length && !error) {
+            setError("The scrolls are taking longer than usual to open. Please try again.");
+          }
+        }
+      }, 15000);
+    }
+    return () => clearTimeout(timer);
+  }, [loading, verses.length, error]);
+
+  useEffect(() => {
+    if (selectedVerseId && !loading && verses.length > 0) {
+      const element = document.getElementById(`verse-${selectedVerseId}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [selectedVerseId, loading, verses]);
+
+  const toggleAudio = () => {
+    if (isReading) {
+      window.speechSynthesis.cancel();
+      setIsReading(false);
+    } else {
+      const textToRead = verses.map(v => v.text).join(' ');
+      const utterance = new SpeechSynthesisUtterance(textToRead);
+      utterance.onend = () => setIsReading(false);
+      window.speechSynthesis.speak(utterance);
+      setIsReading(true);
+    }
+  };
+
+  const handleGlobalSearch = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!globalSearchQuery.trim()) return;
+    setIsSearching(true);
+    setAiAnswer(null);
+    const response = await searchBible(globalSearchQuery);
+    setSearchResults(response.results);
+    setAiAnswer(response.answer);
+    setIsSearching(false);
+  };
+
+  const navigateToVerse = (reference: string) => {
+    // Basic parser for "Book Chapter:Verse" or "Book Chapter"
+    const match = reference.match(/^(.+?)\s+(\d+)(?::(\d+))?$/);
+    if (match) {
+      const bookName = match[1];
+      const chapter = parseInt(match[2]);
+      const verse = match[3] ? parseInt(match[3]) : null;
+
+      // Handle aliases (e.g. Psalm -> Psalms)
+      const normalizedBookName = bookName.toLowerCase() === 'psalm' ? 'psalms' : bookName.toLowerCase();
+
+      const book = BIBLE_BOOKS.find(b => b.name.toLowerCase() === normalizedBookName);
+      if (book) {
+        setCurrentBook(book);
+        setCurrentChapter(chapter);
+        if (verse) {
+          setSelectedVerseId(verse);
+        } else {
+          setSelectedVerseId(null);
+        }
+        setActiveTab('bible');
+      }
+    }
+  };
+
+  const handleBookSelect = (book: BibleBook) => {
+    setCurrentBook(book);
+    setCurrentChapter(1);
+    setNavigatorTab('chapter');
+    setBookSearchQuery('');
+  };
+
+  const handleChapterSelect = (chapter: number) => {
+    setCurrentChapter(chapter);
+    setNavigatorTab('verse');
+  };
+
+  const handleVerseSelect = (verse: number) => {
+    setSelectedVerseId(verse);
+    setShowNavigator(false);
+    // Scroll logic will be in a useEffect
+  };
+
+  const handleEditProfile = () => {
+    const newName = prompt('Enter your new name:', name || 'Jerless Mahabir');
+    if (newName !== null && newName.trim() !== '') {
+      setName(newName.trim());
+    }
+    const newEmail = prompt('Enter your new email:', email || 'jerlessm@gmail.com');
+    if (newEmail !== null && newEmail.trim() !== '') {
+      setEmail(newEmail.trim());
+    }
+  };
+
+  const handleShareProfile = async () => {
+    const shareData = {
+      title: `${name || 'Jerless Mahabir'}'s Lumina Bible Profile`,
+      text: `Check out my reading progress on Lumina Bible! I have a 12 day streak!`,
+      url: window.location.href
+    };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(`Check out my Lumina Bible Profile: ${window.location.href}`);
+        alert('Profile link copied to clipboard!');
+      }
+    } catch (err) {
+      console.error('Error sharing profile:', err);
+    }
+  };
+
+  const handlePhotoUpload = (e: any) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setProfilePhoto(url);
+    }
+  };
+
+  const nextChapter = () => {
+    if (currentChapter < currentBook.chapters) {
+      setCurrentChapter(prev => prev + 1);
+    } else {
+      const currentIndex = BIBLE_BOOKS.findIndex(b => b.name === currentBook.name);
+      if (currentIndex < BIBLE_BOOKS.length - 1) {
+        setCurrentBook(BIBLE_BOOKS[currentIndex + 1]);
+        setCurrentChapter(1);
+      }
+    }
+  };
+
+  const prevChapter = () => {
+    if (currentChapter > 1) {
+      setCurrentChapter(prev => prev - 1);
+    } else {
+      const currentIndex = BIBLE_BOOKS.findIndex(b => b.name === currentBook.name);
+      if (currentIndex > 0) {
+        const prevBook = BIBLE_BOOKS[currentIndex - 1];
+        setCurrentBook(prevBook);
+        setCurrentChapter(prevBook.chapters);
+      }
+    }
+  };
+
+  const groupedBooks = useMemo(() => {
+    let filtered = BIBLE_BOOKS;
+    if (bookSearchQuery) {
+      filtered = BIBLE_BOOKS.filter(b => b.name.toLowerCase().includes(bookSearchQuery.toLowerCase()));
+    } else {
+      filtered = BIBLE_BOOKS.filter(b => b.testament === testamentFilter);
+    }
+    const groups: Record<string, BibleBook[]> = {};
+    filtered.forEach(book => {
+      if (!groups[book.category]) groups[book.category] = [];
+      groups[book.category].push(book);
+    });
+    return groups;
+  }, [testamentFilter, bookSearchQuery]);
+
+  return (
+    <div className={`min-h-screen bg-[#F5F5F5] text-[#1A1A1A] font-sans selection:bg-emerald-100 pb-24 ${themeColor === 'emerald' ? '' : `theme-${themeColor}`}`}>
+      <AnimatePresence mode="wait">
+        {!isAuthenticated ? (
+          <motion.div
+            key="auth"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-white overflow-hidden flex flex-col"
+          >
+            {/* Gradient Background */}
+            {/* Premium Animated Background */}
+            <div className="absolute inset-0 z-0 overflow-hidden bg-[#0A0A0A]">
+              <div className="absolute inset-0 bg-[url('https://transparenttextures.com/patterns/noise-pattern-with-subtle-cross-lines.png')] opacity-20 mix-blend-overlay"></div>
+              <motion.div
+                animate={{ scale: [1, 1.1, 1], rotate: [0, 5, 0] }}
+                transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+                className="absolute top-[-20%] left-[-10%] w-[70vw] h-[70vw] rounded-full blur-[120px] transition-colors duration-1000"
+                style={{ backgroundColor: 'color-mix(in srgb, var(--theme-primary) 30%, transparent)' }}
+              />
+              <motion.div
+                animate={{ scale: [1, 1.2, 1], rotate: [0, -5, 0] }}
+                transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+                className="absolute bottom-[-20%] right-[-10%] w-[60vw] h-[60vw] rounded-full blur-[130px] transition-colors duration-1000"
+                style={{ backgroundColor: 'color-mix(in srgb, var(--theme-primary-900) 40%, transparent)' }}
+              />
+            </div>
+
+            <div className="relative z-10 flex-1 flex flex-col items-center justify-center p-6 sm:p-12">
+              <AnimatePresence mode="wait">
+                {authView === 'intro' && (
+                  <motion.div
+                    key="intro"
+                    initial={{ opacity: 0, y: 30, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -30, scale: 0.95 }}
+                    transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
+                    className="w-full max-w-md text-center space-y-16 mt-12"
+                  >
+                    <div className="space-y-8">
+                      <div className="flex justify-center relative">
+                        {/* Glow effect back of logo */}
+                        <div
+                          className="absolute inset-0 blur-2xl rounded-full scale-150 transition-colors duration-500"
+                          style={{ backgroundColor: 'color-mix(in srgb, var(--theme-primary) 20%, transparent)' }}
+                        />
+                        <div
+                          className="relative w-32 h-32 rounded-[2.5rem] flex items-center justify-center text-white shadow-2xl border border-white/20 backdrop-blur-xl group hover:scale-105 transition-all duration-500"
+                          style={{
+                            background: 'linear-gradient(to bottom right, var(--theme-primary-400), var(--theme-primary-600))',
+                            boxShadow: '0 25px 50px -12px color-mix(in srgb, var(--theme-primary) 30%, transparent)'
+                          }}
+                        >
+                          <BookOpen size={56} strokeWidth={1.5} className="group-hover:rotate-12 transition-transform duration-500" />
+                        </div>
+                      </div>
+                      <div className="space-y-4">
+                        <h1 className="text-4xl xs:text-5xl font-black tracking-tight text-white bg-clip-text text-transparent bg-gradient-to-r from-white to-white/70">
+                          Lumina
+                        </h1>
+                        <p
+                          className="font-medium text-lg tracking-wide uppercase max-w-[280px] mx-auto leading-relaxed transition-colors duration-500"
+                          style={{ color: 'color-mix(in srgb, var(--theme-primary-400) 80%, white)' }}
+                        >
+                          Illuminate Your Walk With The Word
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-5 w-full max-w-[320px] mx-auto">
+                      <button
+                        onClick={() => setAuthView('signup')}
+                        className="w-full py-4 px-8 text-[#022c22] rounded-2xl font-bold text-sm tracking-widest uppercase transition-all hover:-translate-y-1 active:translate-y-0"
+                        style={{
+                          backgroundColor: 'var(--theme-primary)',
+                          boxShadow: '0 0 40px -10px color-mix(in srgb, var(--theme-primary) 50%, transparent)'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 0 60px -10px color-mix(in srgb, var(--theme-primary) 70%, transparent)'}
+                        onMouseLeave={(e) => e.currentTarget.style.boxShadow = '0 0 40px -10px color-mix(in srgb, var(--theme-primary) 50%, transparent)'}
+                      >
+                        Create Account
+                      </button>
+                      <button
+                        onClick={() => setAuthView('login')}
+                        className="w-full py-4 px-8 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-2xl font-bold text-sm tracking-widest uppercase backdrop-blur-md transition-all hover:border-white/20"
+                      >
+                        Sign In
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {(authView === 'login' || authView === 'signup') && (
+                  <motion.div
+                    key="form"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+                    className="w-full max-w-sm space-y-8 relative"
+                  >
+                    {/* Glass Container */}
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-2xl rounded-[3rem] border border-white/10 shadow-2xl z-0 -mx-6 -my-8 sm:mx-0" />
+
+                    <div className="relative z-10 px-2 sm:px-6 py-4">
+                      <div className="flex items-center justify-between mb-8">
+                        <button
+                          onClick={() => setAuthView('intro')}
+                          className="p-3 bg-white/5 hover:bg-white/10 border border-white/5 rounded-full text-white transition-colors"
+                        >
+                          <ArrowLeft size={20} />
+                        </button>
+                        <div
+                          className="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg transition-colors duration-500"
+                          style={{ background: 'linear-gradient(to bottom right, var(--theme-primary-400), var(--theme-primary-600))' }}
+                        >
+                          <BookOpen size={20} />
+                        </div>
+                      </div>
+
+                      <div className="mb-10 text-center sm:text-left">
+                        <h2 className="text-3xl font-bold text-white mb-2">
+                          {authView === 'login' ? 'Welcome Back' : 'Join Lumina'}
+                        </h2>
+                        <p className="text-gray-400 font-medium text-sm">
+                          {authView === 'login' ? 'Sign in to sync your progress.' : 'Create an account to save bookmarks.'}
+                        </p>
+                      </div>
+
+                      <form onSubmit={handleAuth} className="space-y-5">
+                        {authView === 'signup' && (
+                          <div className="space-y-1">
+                            <label
+                              className="text-[10px] font-bold uppercase tracking-widest ml-4 transition-colors duration-500"
+                              style={{ color: 'color-mix(in srgb, var(--theme-primary-400) 80%, white)' }}
+                            >
+                              Full Name
+                            </label>
+                            <div className="relative group">
+                              <User className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 transition-colors duration-300" size={20} />
+                              <input
+                                type="text"
+                                required
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                placeholder="John Doe"
+                                className="w-full pl-14 pr-4 py-4 md:py-5 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:border-transparent transition-all focus:bg-white/10 relative z-10"
+                                style={{ '--tw-ring-color': 'color-mix(in srgb, var(--theme-primary) 50%, transparent)' } as any}
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="space-y-1">
+                          <label
+                            className="text-[10px] font-bold uppercase tracking-widest ml-4 transition-colors duration-500"
+                            style={{ color: 'color-mix(in srgb, var(--theme-primary-400) 80%, white)' }}
+                          >
+                            Email Address
+                          </label>
+                          <div className="relative group">
+                            <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 transition-colors duration-300" size={20} />
+                            <input
+                              type="email"
+                              required
+                              value={email}
+                              onChange={(e) => setEmail(e.target.value)}
+                              placeholder="you@email.com"
+                              className="w-full pl-14 pr-4 py-4 md:py-5 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:border-transparent transition-all focus:bg-white/10 relative z-10"
+                              style={{ '--tw-ring-color': 'color-mix(in srgb, var(--theme-primary) 50%, transparent)' } as any}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label
+                            className="text-[10px] font-bold uppercase tracking-widest ml-4 transition-colors duration-500"
+                            style={{ color: 'color-mix(in srgb, var(--theme-primary-400) 80%, white)' }}
+                          >
+                            Password
+                          </label>
+                          <div className="relative group">
+                            <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 transition-colors duration-300" size={20} />
+                            <input
+                              type={showPassword ? 'text' : 'password'}
+                              required
+                              value={password}
+                              onChange={(e) => setPassword(e.target.value)}
+                              placeholder="••••••••"
+                              className="w-full pl-14 pr-14 py-4 md:py-5 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:border-transparent transition-all focus:bg-white/10 relative z-10"
+                              style={{ '--tw-ring-color': 'color-mix(in srgb, var(--theme-primary) 50%, transparent)' } as any}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPassword(!showPassword)}
+                              className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors p-1 z-20"
+                            >
+                              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                            </button>
+                          </div>
+                        </div>
+
+                        <button
+                          type="submit"
+                          className="w-full py-4 md:py-5 text-[#022c22] rounded-2xl font-bold text-sm uppercase tracking-widest transition-all mt-8 relative overflow-hidden"
+                          style={{
+                            backgroundColor: 'var(--theme-primary)',
+                            boxShadow: '0 0 30px -10px color-mix(in srgb, var(--theme-primary) 40%, transparent)'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 0 50px -10px color-mix(in srgb, var(--theme-primary) 60%, transparent)'}
+                          onMouseLeave={(e) => e.currentTarget.style.boxShadow = '0 0 30px -10px color-mix(in srgb, var(--theme-primary) 40%, transparent)'}
+                        >
+                          {authView === 'login' ? 'Sign In' : 'Join Now'}
+                        </button>
+                      </form>
+
+                      <p className="text-center text-sm text-gray-400 mt-8 mb-4">
+                        {authView === 'login' ? (
+                          <>
+                            New here?{' '}
+                            <button
+                              onClick={() => setAuthView('signup')}
+                              className="font-bold transition-colors"
+                              style={{ color: 'var(--theme-primary)' }}
+                            >
+                              Create Account
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            Already enrolled?{' '}
+                            <button
+                              onClick={() => setAuthView('login')}
+                              className="font-bold transition-colors"
+                              style={{ color: 'var(--theme-primary)' }}
+                            >
+                              Sign In
+                            </button>
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </motion.div>
+        ) : (
+          <div key="app-content">
+            {/* Header (Contextual) */}
+            <header className="sticky top-0 z-30 bg-[#F5F5F5]/80 backdrop-blur-md px-6 pt-12 pb-4">
+              <div className="max-w-2xl mx-auto">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-200">
+                      <BookOpen size={24} />
+                    </div>
+                    <div>
+                      <h1 className="text-lg font-bold tracking-tight">Lumina</h1>
+                      <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400">Bible App</p>
+                    </div>
+                  </div>
+                </div>
+                {/* Removed redundant profile icon button */}
+                {activeTab === 'home' && (
+                  <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+                    <h1 className="text-4xl font-bold tracking-tight mb-2">
+                      Good <span className="text-emerald-600">{greeting}</span> {firstName}
+                    </h1>
+                    <p className="text-gray-400 font-medium">
+                      {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                    </p>
+                  </motion.div>
+                )}
+
+                {activeTab === 'bible' && (
+                  <div className="flex items-center justify-between mb-4">
+                    <div className={cn(
+                      "flex items-center gap-1 p-1.5 rounded-2xl shadow-sm border transition-colors backdrop-blur-md flex-1",
+                      readingMode === 'light' ? "bg-white/90 border-black/5" :
+                        readingMode === 'sepia' ? "bg-[#e8dfc8]/90 border-[#dcd0b0]" :
+                          "bg-[#2a2a2a]/90 border-white/10"
+                    )}>
+
+                      {/* Book & Chapter Selector */}
+                      <button
+                        onClick={() => {
+                          setNavigatorTab('book');
+                          setShowNavigator(true);
+                        }}
+                        className={cn(
+                          "flex items-center gap-2 px-4 py-2 rounded-xl transition-colors flex-1 min-w-0",
+                          readingMode === 'light' ? "hover:bg-black/5" :
+                            readingMode === 'sepia' ? "hover:bg-[#dfd4b8]" :
+                              "hover:bg-[#333333]"
+                        )}
+                      >
+                        <span className={cn(
+                          "text-[15px] font-bold truncate",
+                          readingMode === 'dark' ? "text-emerald-400" : "text-emerald-700"
+                        )}>
+                          {currentBook.name} {currentChapter}
+                        </span>
+                        <ChevronDown size={16} className="text-gray-400 shrink-0" />
+                      </button>
+
+                      {/* Divider */}
+                      <div className={cn(
+                        "w-px h-6 mx-1",
+                        readingMode === 'dark' ? "bg-white/10" : "bg-black/10"
+                      )} />
+
+                      {/* Verse Selector */}
+                      <button
+                        onClick={() => {
+                          setNavigatorTab('verse');
+                          setShowNavigator(true);
+                        }}
+                        className={cn(
+                          "w-10 h-10 flex items-center justify-center rounded-xl transition-colors shrink-0",
+                          readingMode === 'light' ? "hover:bg-black/5" :
+                            readingMode === 'sepia' ? "hover:bg-[#dfd4b8]" :
+                              "hover:bg-[#333333]"
+                        )}
+                        title="Select Verse"
+                      >
+                        <span className="text-sm font-bold text-gray-400">V</span>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-2 ml-3">
+                      {/* Audio Toggle */}
+                      <button
+                        onClick={toggleAudio}
+                        className={cn(
+                          "w-11 h-11 flex items-center justify-center rounded-2xl transition-all shadow-sm border",
+                          isReading
+                            ? "bg-amber-500 text-white border-amber-400 animate-pulse shadow-amber-200"
+                            : readingMode === 'light' ? "bg-white border-black/5 text-gray-500 hover:text-amber-500" :
+                              readingMode === 'sepia' ? "bg-[#e8dfc8] border-[#dcd0b0] text-gray-600 hover:text-amber-600" :
+                                "bg-[#2a2a2a] border-white/10 text-gray-400 hover:text-amber-400"
+                        )}
+                      >
+                        <Volume2 size={20} />
+                      </button>
+
+                      {/* Translation Selector */}
+                      <button
+                        onClick={() => {
+                          setNavigatorTab('version');
+                          setShowNavigator(true);
+                        }}
+                        className={cn(
+                          "flex items-center gap-1.5 px-4 h-11 rounded-2xl shadow-sm border font-bold text-sm transition-all",
+                          readingMode === 'light' ? "bg-emerald-50 border-emerald-100 text-emerald-700 hover:bg-emerald-100" :
+                            readingMode === 'sepia' ? "bg-emerald-900/10 border-emerald-900/20 text-emerald-800" :
+                              "bg-emerald-900/30 border-emerald-500/20 text-emerald-400 hover:bg-emerald-900/50"
+                        )}
+                      >
+                        {currentTranslation.name}
+                        <ChevronDown size={14} className="opacity-50" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'bible' && (
+                  <div className="max-w-2xl mx-auto mt-4 px-1">
+                    <div className={cn(
+                      "w-full h-1 rounded-full overflow-hidden",
+                      readingMode === 'dark' ? "bg-white/5" : "bg-black/5"
+                    )}>
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${chapterProgress}%` }}
+                        className="h-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'search' && (
+                  <form onSubmit={handleGlobalSearch} className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                    <input
+                      type="text"
+                      placeholder="Search keywords, topics, or verses..."
+                      value={globalSearchQuery}
+                      onChange={(e) => setGlobalSearchQuery(e.target.value)}
+                      className="w-full pl-12 pr-4 py-4 bg-white rounded-2xl shadow-sm border border-black/5 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all text-lg"
+                    />
+                  </form>
+                )}
+
+                {activeTab === 'plans' && (
+                  <div>
+                    <h1 className="text-3xl font-bold tracking-tight">Reading Plans</h1>
+                    <p className="text-gray-400 font-medium">Track your spiritual journey</p>
+                  </div>
+                )}
+
+                {activeTab === 'profile' && (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      {profileSubView !== 'main' && (
+                        <button
+                          onClick={() => setProfileSubView('main')}
+                          className="p-2 hover:bg-white/50 rounded-full transition-colors"
+                        >
+                          <ArrowLeft size={24} />
+                        </button>
+                      )}
+                      <div>
+                        <h1 className="text-3xl font-bold tracking-tight">
+                          {profileSubView === 'main' ? 'Settings' : 'Saved Items'}
+                        </h1>
+                        <p className="text-gray-400 font-medium">
+                          {profileSubView === 'main' ? 'Manage your account' : 'Bookmarks & Notes'}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleLogout}
+                      className="p-2.5 bg-white rounded-full shadow-sm border border-black/5 text-gray-400 hover:text-red-500 transition-colors"
+                    >
+                      <LogOut size={20} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </header>
+
+            {/* Main Content */}
+            <main className="max-w-2xl mx-auto px-6 pt-6">
+              <AnimatePresence mode="wait">
+                {activeTab === 'home' && (
+                  <motion.div
+                    key="home"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    className="space-y-10 pb-12"
+                  >
+                    {/* Verse of the Day - Editorial Style */}
+                    <div className="relative group">
+                      <div className="absolute -inset-1 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-[40px] blur opacity-10 group-hover:opacity-20 transition duration-1000 group-hover:duration-200"></div>
+                      <div className="relative bg-white rounded-[32px] p-10 shadow-sm border border-black/5 overflow-hidden">
+                        <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-emerald-50 rounded-full blur-3xl opacity-50" />
+
+                        <div className="relative z-10 space-y-8">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="w-1 h-8 bg-emerald-500 rounded-full" />
+                              <span className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-400">
+                                Verse of the Day
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={shareVotd}
+                                className="w-10 h-10 rounded-full flex items-center justify-center transition-all border bg-white text-gray-400 border-black/5 hover:text-emerald-600 hover:border-emerald-100"
+                                title="Share Verse"
+                              >
+                                <Share2 size={18} />
+                              </button>
+                              <button
+                                onClick={() => setNotificationsEnabled(!notificationsEnabled)}
+                                className={cn(
+                                  "w-10 h-10 rounded-full flex items-center justify-center transition-all border",
+                                  notificationsEnabled
+                                    ? "bg-emerald-500 text-white border-emerald-400 shadow-lg shadow-emerald-100"
+                                    : "bg-white text-gray-300 border-black/5 hover:text-emerald-600 hover:border-emerald-100"
+                                )}
+                                title="Notifications"
+                              >
+                                {notificationsEnabled ? <Bell size={18} /> : <BellOff size={18} />}
+                              </button>
+                            </div>
+                          </div>
+
+                          <blockquote className="text-3xl md:text-4xl font-serif italic leading-[1.15] text-gray-900 tracking-tight">
+                            "{votd.text}"
+                          </blockquote>
+
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 pt-4">
+                            <div className="flex items-center gap-4">
+                              <div className="w-10 h-10 rounded-full bg-gray-900 flex items-center justify-center text-white font-bold text-xs">
+                                {votd.reference.substring(0, 1)}
+                              </div>
+                              <button
+                                onClick={() => navigateToVerse(votd.reference)}
+                                className="text-left group/ref"
+                              >
+                                <p className="text-sm font-black text-gray-900 uppercase tracking-wider group-hover/ref:text-emerald-600 transition-colors">{votd.reference}</p>
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Holy Bible</p>
+                              </button>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={toggleVotdBookmark}
+                                className={cn(
+                                  "w-12 h-12 rounded-2xl flex items-center justify-center transition-all border shadow-sm",
+                                  isVotdBookmarked
+                                    ? "bg-indigo-500 text-white border-indigo-400 shadow-indigo-100"
+                                    : "bg-white text-gray-400 border-black/5 hover:text-indigo-600 hover:border-indigo-100"
+                                )}
+                                title="Bookmark Verse"
+                              >
+                                {isVotdBookmarked ? <BookmarkCheck size={20} fill="currentColor" /> : <Bookmark size={20} />}
+                              </button>
+                              <button
+                                onClick={() => navigateToVerse(votd.reference)}
+                                className="group/btn flex items-center justify-center gap-3 px-6 py-3 bg-emerald-600 text-white rounded-2xl font-bold text-sm hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 h-12"
+                              >
+                                Read Chapter
+                                <ArrowRight size={18} className="group-hover/btn:translate-x-1 transition-transform" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quick Actions - Bento Style */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <button
+                        onClick={() => setActiveTab('bible')}
+                        className="group relative bg-gray-900 text-white p-8 rounded-[32px] overflow-hidden transition-all hover:scale-[1.02] active:scale-[0.98]"
+                      >
+                        <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-colors" />
+                        <div className="relative z-10 flex flex-col h-full justify-between gap-8">
+                          <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center">
+                            <BookOpen size={24} />
+                          </div>
+                          <div className="text-left">
+                            <p className="text-2xl font-bold tracking-tight mb-1">Continue Reading</p>
+                            <p className="text-gray-400 text-sm font-medium flex items-center gap-2">
+                              {currentBook.name} {currentChapter}
+                              <ArrowRight size={14} />
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+
+                      <div className="grid grid-rows-2 gap-4">
+                        <button
+                          onClick={() => setActiveTab('plans')}
+                          className="group bg-white border border-black/5 p-6 rounded-[28px] flex items-center justify-between hover:bg-gray-50 transition-all hover:shadow-md"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                              <Calendar size={20} />
+                            </div>
+                            <div className="text-left">
+                              <p className="font-bold text-gray-900">Reading Plans</p>
+                              <p className="text-xs text-gray-400 font-medium">4 Active Journeys</p>
+                            </div>
+                          </div>
+                          <ChevronRight size={20} className="text-gray-300 group-hover:text-emerald-600 transition-colors" />
+                        </button>
+
+                        <button
+                          onClick={() => setActiveTab('search')}
+                          className="group bg-white border border-black/5 p-6 rounded-[28px] flex items-center justify-between hover:bg-gray-50 transition-all hover:shadow-md"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                              <Search size={20} />
+                            </div>
+                            <div className="text-left">
+                              <p className="font-bold text-gray-900">Global Search</p>
+                              <p className="text-xs text-gray-400 font-medium">Find any verse</p>
+                            </div>
+                          </div>
+                          <ChevronRight size={20} className="text-gray-300 group-hover:text-indigo-600 transition-colors" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Recently Bookmarked Section */}
+                    {Object.keys(bookmarks).length > 0 && (
+                      <div className="space-y-6">
+                        <div className="flex items-center justify-between px-2">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                              <Bookmark size={16} fill="currentColor" />
+                            </div>
+                            <h3 className="text-xl font-black tracking-tight text-gray-900">
+                              Recently Bookmarked
+                            </h3>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setActiveTab('profile');
+                              setProfileSubView('saved');
+                            }}
+                            className="text-xs font-black text-indigo-600 uppercase tracking-widest hover:underline"
+                          >
+                            View All
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4">
+                          {(Object.entries(bookmarks) as [string, { text: string, reference: string }][]).slice(0, 3).map(([key, data]) => (
+                            <div
+                              key={key}
+                              className="group relative w-full bg-white p-6 rounded-[28px] border border-black/5 hover:border-indigo-200 transition-all hover:shadow-xl hover:shadow-indigo-500/5 overflow-hidden"
+                            >
+                              <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50 rounded-full -mr-12 -mt-12 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
+
+                              <div className="relative z-10 flex flex-col gap-3">
+                                <div className="flex items-center justify-between">
+                                  <button
+                                    onClick={() => navigateToVerse(data.reference)}
+                                    className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-colors"
+                                  >
+                                    {data.reference}
+                                  </button>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={() => shareVerse({ book_name: '', chapter: 0, verse: 0, text: data.text, ...data } as any)}
+                                      className="p-2 text-gray-300 hover:text-indigo-600 transition-colors"
+                                    >
+                                      <Share2 size={16} />
+                                    </button>
+                                    <ArrowRight
+                                      size={16}
+                                      className="text-gray-300 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all cursor-pointer"
+                                      onClick={() => navigateToVerse(data.reference)}
+                                    />
+                                  </div>
+                                </div>
+                                <p
+                                  className="text-gray-600 text-base font-serif italic leading-relaxed line-clamp-2 cursor-pointer"
+                                  onClick={() => navigateToVerse(data.reference)}
+                                >
+                                  "{data.text}"
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+
+                {activeTab === 'bible' && (
+                  <motion.div
+                    key="bible"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className={cn(
+                      "rounded-[32px] transition-all duration-500 relative",
+                      readingMode === 'sepia' && "bg-[#f4ecd8] text-[#5b4636]",
+                      readingMode === 'dark' && "bg-[#1a1a1a] text-[#d1d1d1]"
+                    )}
+                    onPanEnd={(_, info) => {
+                      const threshold = 50;
+                      if (info.offset.x > threshold) {
+                        prevChapter();
+                      } else if (info.offset.x < -threshold) {
+                        nextChapter();
+                      }
+                    }}
+                    onHoverStart={() => setShowNavButtons(true)}
+                    onHoverEnd={() => setShowNavButtons(false)}
+                    onClick={() => setShowNavButtons(!showNavButtons)}
+                  >
+                    {/* Floating Navigation Buttons */}
+                    <AnimatePresence>
+                      {showNavButtons && (
+                        <>
+                          <motion.button
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              prevChapter();
+                            }}
+                            className={cn(
+                              "fixed left-6 top-1/2 -translate-y-1/2 z-40 w-14 h-14 rounded-full flex items-center justify-center shadow-2xl backdrop-blur-xl border transition-all active:scale-90",
+                              readingMode === 'dark'
+                                ? "bg-white/10 border-white/10 text-white hover:bg-white/20"
+                                : "bg-white/80 border-black/5 text-gray-900 hover:bg-white"
+                            )}
+                          >
+                            <ChevronLeft size={28} />
+                          </motion.button>
+                          <motion.button
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 20 }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              nextChapter();
+                            }}
+                            className={cn(
+                              "fixed right-6 top-1/2 -translate-y-1/2 z-40 w-14 h-14 rounded-full flex items-center justify-center shadow-2xl backdrop-blur-xl border transition-all active:scale-90",
+                              readingMode === 'dark'
+                                ? "bg-white/10 border-white/10 text-white hover:bg-white/20"
+                                : "bg-white/80 border-black/5 text-gray-900 hover:bg-white"
+                            )}
+                          >
+                            <ChevronRight size={28} />
+                          </motion.button>
+                        </>
+                      )}
+                    </AnimatePresence>
+                    {loading ? (
+                      <div className="flex flex-col items-center justify-center py-32 gap-4">
+                        <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                        <p className="text-gray-500 font-medium">Opening the scrolls...</p>
+                      </div>
+                    ) : error ? (
+                      <div className="text-center py-32">
+                        <p className="text-red-500 mb-4">{error}</p>
+                        <button
+                          onClick={() => fetchVerses(currentBook, currentChapter, currentTranslation.id)}
+                          className="px-6 py-2 bg-emerald-600 text-white rounded-full font-semibold"
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-6">
+                        <div className="text-center mb-12 relative py-8">
+                          <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none">
+                            <h1 className="text-[120px] font-black uppercase tracking-tighter">
+                              {currentBook.name.substring(0, 2)}
+                            </h1>
+                          </div>
+                          <p className={cn(
+                            "text-[10px] font-bold uppercase tracking-[0.3em] mb-3",
+                            readingMode === 'dark' ? "text-emerald-400/60" : "text-emerald-600/60"
+                          )}>
+                            {currentBook.category}
+                          </p>
+                          <h2 className={cn(
+                            "text-4xl font-serif italic tracking-tight",
+                            readingMode === 'sepia' ? "text-[#5b4636]" : readingMode === 'dark' ? "text-white" : "text-gray-900"
+                          )}>
+                            {currentBook.name} <span className="font-sans not-italic font-black ml-1 text-emerald-500">{currentChapter}</span>
+                          </h2>
+                          <div className={cn(
+                            "w-12 h-1 mx-auto mt-6 rounded-full",
+                            readingMode === 'dark' ? "bg-emerald-500/20" : "bg-emerald-500/10"
+                          )} />
+                        </div>
+
+                        <div className="space-y-1">
+                          {verses.map((v) => {
+                            const key = `${v.book_name}-${v.chapter}:${v.verse}`;
+                            const isBookmarked = !!bookmarks[key];
+                            const hasNote = !!notes[key];
+                            const highlightId = highlights[key];
+                            const highlight = HIGHLIGHT_COLORS.find(c => c.id === highlightId);
+                            const isSelected = selectedVerseId === v.verse;
+
+                            return (
+                              <div
+                                key={v.verse}
+                                id={`verse-${v.verse}`}
+                                onClick={() => {
+                                  setSelectedVerseId(isSelected ? null : v.verse);
+                                  setShowHighlighterMenu(false);
+                                }}
+                                className={cn(
+                                  "relative group px-6 py-4 rounded-3xl transition-all duration-300 cursor-pointer",
+                                  isSelected
+                                    ? (readingMode === 'dark' ? "bg-emerald-500/10" : "bg-emerald-50/50")
+                                    : "hover:bg-gray-50/30",
+                                  readingMode === 'sepia' && isSelected && "bg-[#e8dfc8]",
+                                  readingMode === 'dark' && !isSelected && "hover:bg-white/5",
+                                  highlight && (readingMode === 'dark' ? highlight.darkBg : highlight.bg)
+                                )}
+                              >
+                                {/* Verse Content */}
+                                <div className={cn(
+                                  "leading-relaxed transition-colors flex items-start gap-6",
+                                  fontSize === 'small' ? 'text-base' : fontSize === 'large' ? 'text-xl' : 'text-lg',
+                                  fontEmphasis === 'bold' && "font-bold",
+                                  fontEmphasis === 'italic' && "italic",
+                                  readingMode === 'sepia' ? 'text-[#5b4636]' : readingMode === 'dark' ? 'text-[#d1d1d1]' : (hasNote ? "text-gray-900" : "text-gray-700")
+                                )}>
+                                  <div className="flex flex-col items-center select-none flex-shrink-0 w-8 pt-1">
+                                    <span className={cn(
+                                      "text-[11px] font-black transition-colors",
+                                      isSelected ? "text-emerald-500" : "text-gray-300"
+                                    )}>
+                                      {v.verse}
+                                    </span>
+                                    <div className="flex gap-0.5 mt-1">
+                                      {isBookmarked && <div className="w-1 h-1 rounded-full bg-indigo-500" />}
+                                      {hasNote && <div className="w-1 h-1 rounded-full bg-emerald-500" />}
+                                      {highlight && <div className={cn("w-1 h-1 rounded-full", highlight.dot)} />}
+                                    </div>
+                                  </div>
+
+                                  <span className={cn(
+                                    "relative flex-1",
+                                    hasNote && "decoration-emerald-200/50 decoration-2 underline-offset-4 underline"
+                                  )}>
+                                    {v.text}
+                                  </span>
+                                </div>
+
+                                {/* Floating Action Bar for Selected Verse */}
+                                <AnimatePresence>
+                                  {isSelected && (
+                                    <motion.div
+                                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                      className="mt-4 flex flex-col items-center gap-2 w-full"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      {showHighlighterMenu && (
+                                        <motion.div
+                                          initial={{ opacity: 0, y: 5 }}
+                                          animate={{ opacity: 1, y: 0 }}
+                                          className="flex items-center gap-3 p-2 bg-white dark:bg-[#2a2a2a] rounded-2xl shadow-xl border border-black/5 dark:border-white/10"
+                                        >
+                                          {HIGHLIGHT_COLORS.map((c) => (
+                                            <button
+                                              key={c.id}
+                                              onClick={() => toggleHighlight(v, c.id)}
+                                              className={cn(
+                                                "w-8 h-8 rounded-full transition-transform hover:scale-110 active:scale-95 border-2",
+                                                c.bg,
+                                                highlightId === c.id ? "border-emerald-500" : "border-transparent"
+                                              )}
+                                            />
+                                          ))}
+                                          <div className="w-px h-6 bg-gray-100 dark:bg-white/10 mx-1" />
+                                          <button
+                                            onClick={() => {
+                                              const key = `${v.book_name}-${v.chapter}:${v.verse}`;
+                                              const newHighlights = { ...highlights };
+                                              delete newHighlights[key];
+                                              setHighlights(newHighlights);
+                                              localStorage.setItem('bible_highlights', JSON.stringify(newHighlights));
+                                            }}
+                                            className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                                            title="Clear Highlight"
+                                          >
+                                            <Trash2 size={16} />
+                                          </button>
+                                        </motion.div>
+                                      )}
+
+                                      <div className="flex items-center gap-2 p-1 bg-white dark:bg-[#2a2a2a] rounded-2xl shadow-xl border border-black/5 dark:border-white/10">
+                                        <button
+                                          onClick={() => toggleBookmark(v)}
+                                          className={cn(
+                                            "p-2.5 rounded-xl transition-all",
+                                            isBookmarked ? "bg-indigo-500 text-white" : "text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-indigo-600"
+                                          )}
+                                          title="Bookmark"
+                                        >
+                                          <Bookmark size={18} fill={isBookmarked ? "currentColor" : "none"} />
+                                        </button>
+                                        <button
+                                          onClick={() => handleOpenNote(v)}
+                                          className={cn(
+                                            "p-2.5 rounded-xl transition-all",
+                                            hasNote ? "bg-emerald-500 text-white" : "text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-emerald-600"
+                                          )}
+                                          title="Note"
+                                        >
+                                          <Pencil size={18} />
+                                        </button>
+                                        <button
+                                          onClick={() => setShowHighlighterMenu(!showHighlighterMenu)}
+                                          className={cn(
+                                            "p-2.5 rounded-xl transition-all",
+                                            highlightId ? "bg-yellow-400 text-white" : "text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-yellow-600"
+                                          )}
+                                          title="Highlight"
+                                        >
+                                          <Highlighter size={18} />
+                                        </button>
+                                        <button
+                                          onClick={() => copyVerse(v)}
+                                          className="p-2.5 rounded-xl text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-emerald-600 transition-all"
+                                          title="Copy"
+                                        >
+                                          {copiedVerseId === v.verse ? <Check size={18} className="text-emerald-500" /> : <Copy size={18} />}
+                                        </button>
+                                        <button
+                                          onClick={() => shareVerse(v)}
+                                          className="p-2.5 rounded-xl text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-emerald-600 transition-all"
+                                          title="Share"
+                                        >
+                                          <Share2 size={18} />
+                                        </button>
+                                        <div className="w-px h-6 bg-gray-100 dark:bg-white/10 mx-1" />
+                                        <button
+                                          onClick={() => handleVisualize(v)}
+                                          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold text-xs hover:bg-indigo-500 transition-all"
+                                        >
+                                          <Eye size={16} />
+                                          Visualize
+                                        </button>
+                                      </div>
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Navigation */}
+                        <div className={cn(
+                          "flex items-center justify-between pt-12 border-t mt-12",
+                          readingMode === 'dark' ? "border-white/10" : "border-black/5"
+                        )}>
+                          <button
+                            onClick={prevChapter}
+                            className={cn(
+                              "flex items-center gap-2 transition-colors font-bold text-sm uppercase tracking-widest",
+                              readingMode === 'dark' ? "text-gray-500 hover:text-emerald-400" : "text-gray-400 hover:text-emerald-600"
+                            )}
+                          >
+                            <ChevronLeft size={20} />
+                            <span>Prev Chapter</span>
+                          </button>
+                          <button
+                            onClick={nextChapter}
+                            className={cn(
+                              "flex items-center gap-2 transition-colors font-bold text-sm uppercase tracking-widest text-right",
+                              readingMode === 'dark' ? "text-gray-500 hover:text-emerald-400" : "text-gray-400 hover:text-emerald-600"
+                            )}
+                          >
+                            <span>Next Chapter</span>
+                            <ChevronRight size={20} />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+
+                {activeTab === 'search' && (
+                  <motion.div
+                    key="search"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    className="space-y-6"
+                  >
+                    {isSearching ? (
+                      <div className="flex flex-col items-center justify-center py-32 gap-4">
+                        <div className="w-12 h-12 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                        <div className="text-center space-y-2">
+                          <p className="text-gray-900 font-bold text-xl">Consulting the AI Chaplain...</p>
+                          <p className="text-gray-400 text-sm italic">"Seek and ye shall find..."</p>
+                        </div>
+                      </div>
+                    ) : (searchResults.length > 0 || aiAnswer) ? (
+                      <div className="space-y-8">
+                        {aiAnswer && (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="bg-emerald-600 text-white p-8 rounded-[32px] shadow-xl shadow-emerald-100 relative overflow-hidden group"
+                          >
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-3xl group-hover:bg-white/20 transition-all" />
+                            <div className="relative z-10 space-y-4">
+                              <div className="flex items-center gap-2">
+                                <Sparkles size={20} className="text-emerald-200" />
+                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-100">AI Insight</span>
+                              </div>
+                              <p className="text-xl font-serif italic leading-relaxed">
+                                {aiAnswer}
+                              </p>
+                            </div>
+                          </motion.div>
+                        )}
+
+                        <div className="space-y-4">
+                          <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 ml-4">Relevant Verses</h3>
+                          <div className="grid grid-cols-1 gap-4">
+                            {searchResults.map((result, idx) => (
+                              <button
+                                key={idx}
+                                onClick={() => navigateToVerse(result.reference)}
+                                className="w-full text-left bg-white p-6 rounded-[28px] border border-black/5 hover:border-emerald-200 transition-all group hover:shadow-lg hover:shadow-emerald-500/5"
+                              >
+                                <div className="flex items-center justify-between mb-3">
+                                  <span className="font-black text-emerald-600 text-sm tracking-tight">{result.reference}</span>
+                                  <ArrowRight size={16} className="text-gray-300 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all" />
+                                </div>
+                                <p className="text-gray-800 italic mb-4 line-clamp-3 font-serif text-lg leading-relaxed">"{result.preview}"</p>
+                                <div className="flex items-start gap-2 bg-gray-50 p-3 rounded-xl">
+                                  <Info size={14} className="text-gray-400 mt-0.5 flex-shrink-0" />
+                                  <p className="text-xs text-gray-500 leading-tight">{result.relevance}</p>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ) : globalSearchQuery ? (
+                      <div className="text-center py-32">
+                        <p className="text-gray-400 font-medium">No results found for "{globalSearchQuery}"</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-12 py-12">
+                        <div className="text-center space-y-4">
+                          <div className="w-20 h-20 bg-white rounded-[32px] shadow-sm border border-black/5 flex items-center justify-center mx-auto text-emerald-600">
+                            <Search size={32} />
+                          </div>
+                          <div>
+                            <h2 className="text-2xl font-bold text-gray-900">AI Scripture Search</h2>
+                            <p className="text-gray-400 font-medium">Ask questions or search for topics</p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {[
+                            { query: "How to find peace in anxiety?", icon: Sparkles },
+                            { query: "Verses about God's love", icon: Heart },
+                            { query: "Strength for hard times", icon: BookOpen },
+                            { query: "Meaning of John 3:16", icon: Info },
+                          ].map((item, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => {
+                                setGlobalSearchQuery(item.query);
+                                handleGlobalSearch({ preventDefault: () => { } } as any);
+                              }}
+                              className="flex items-center gap-4 p-6 bg-white rounded-[28px] border border-black/5 hover:border-emerald-200 transition-all text-left group"
+                            >
+                              <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                                <item.icon size={20} />
+                              </div>
+                              <span className="font-bold text-gray-700 group-hover:text-emerald-700 transition-colors">{item.query}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+
+                {activeTab === 'plans' && (
+                  <motion.div
+                    key="plans"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    className="space-y-10 pb-12"
+                  >
+                    <div className="grid grid-cols-1 gap-6">
+                      {READING_PLANS.map((plan, idx) => {
+                        const planStyles = [
+                          { icon: Sparkles, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100', accent: 'bg-emerald-600', shadow: 'shadow-emerald-100' },
+                          { icon: Heart, color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-100', accent: 'bg-rose-600', shadow: 'shadow-rose-100' },
+                          { icon: Globe, color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-100', accent: 'bg-indigo-600', shadow: 'shadow-indigo-100' },
+                          { icon: BookOpen, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100', accent: 'bg-amber-600', shadow: 'shadow-amber-100' },
+                        ][idx % 4];
+
+                        return (
+                          <div
+                            key={plan.id}
+                            className="group relative bg-white rounded-[32px] p-8 border border-black/5 shadow-sm hover:shadow-xl hover:shadow-black/5 transition-all duration-500 overflow-hidden"
+                          >
+                            {/* Background Decoration */}
+                            <div className={cn(
+                              "absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full blur-3xl opacity-20 transition-opacity group-hover:opacity-30",
+                              planStyles.bg
+                            )} />
+
+                            <div className="relative z-10 space-y-6">
+                              <div className="flex items-start justify-between">
+                                <div className="flex items-center gap-4">
+                                  <div className={cn(
+                                    "w-14 h-14 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 duration-500",
+                                    planStyles.bg,
+                                    planStyles.color
+                                  )}>
+                                    <planStyles.icon size={28} />
+                                  </div>
+                                  <div>
+                                    <h3 className="text-2xl font-black tracking-tight text-gray-900">{plan.title}</h3>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <span className={cn(
+                                        "px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest",
+                                        planStyles.bg,
+                                        planStyles.color
+                                      )}>
+                                        {plan.durationDays} Days
+                                      </span>
+                                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                                        {plan.books.length} Books
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <p className="text-gray-500 leading-relaxed text-sm font-medium">
+                                {plan.description}
+                              </p>
+
+                              {/* Progress Section */}
+                              <div className="space-y-3 pt-2">
+                                <div className="flex justify-between items-end">
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Current Progress</p>
+                                  <p className={cn("text-xs font-black", planStyles.color)}>0%</p>
+                                </div>
+                                <div className="w-full h-3 bg-gray-50 rounded-full overflow-hidden p-0.5 border border-black/5">
+                                  <div
+                                    className={cn("h-full rounded-full transition-all duration-1000", planStyles.accent)}
+                                    style={{ width: '0%' }}
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-3 pt-2">
+                                <button className={cn(
+                                  "flex-1 py-4 rounded-2xl font-black text-sm text-white transition-all shadow-lg active:scale-95",
+                                  planStyles.accent,
+                                  planStyles.shadow
+                                )}>
+                                  Start Journey
+                                </button>
+                                <button className="p-4 rounded-2xl bg-gray-50 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all active:scale-95">
+                                  <Info size={20} />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+
+                {activeTab === 'gallery' && (
+                  <motion.div
+                    key="gallery"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    className="space-y-8 pb-32"
+                  >
+                    <div className="flex flex-col gap-2">
+                      <h1 className="text-4xl font-black tracking-tight text-gray-900">Meditation Gallery</h1>
+                      <p className="text-gray-400 font-medium tracking-wide uppercase text-[10px]">Your personal collection of scripture-inspired art</p>
+                    </div>
+
+                    {gallery.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-24 text-center space-y-6">
+                        <div className="w-24 h-24 rounded-[32px] bg-gray-50 flex items-center justify-center text-gray-300">
+                          <ImageIcon size={48} strokeWidth={1} />
+                        </div>
+                        <div className="space-y-2">
+                          <h3 className="text-xl font-bold text-gray-900">Your gallery is empty</h3>
+                          <p className="text-gray-400 max-w-[240px] text-sm leading-relaxed">
+                            Visualize verses in the Bible reader to start your collection.
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setActiveTab('bible')}
+                          className="px-8 py-4 bg-emerald-600 text-white rounded-2xl font-bold text-sm hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100"
+                        >
+                          Go to Bible
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        {gallery.map((item) => (
+                          <motion.div
+                            key={item.id}
+                            layoutId={item.id}
+                            className="group relative bg-white rounded-[32px] overflow-hidden shadow-sm border border-black/5 hover:shadow-xl transition-all duration-500"
+                          >
+                            <div className="aspect-square relative overflow-hidden">
+                              <img
+                                src={item.url}
+                                alt={item.reference}
+                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                referrerPolicy="no-referrer"
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col justify-end p-6">
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => {
+                                      const link = document.createElement('a');
+                                      link.href = item.url;
+                                      link.download = `Lumina_${item.reference}.png`;
+                                      link.click();
+                                    }}
+                                    className="flex-1 py-3 bg-white/20 backdrop-blur-md hover:bg-white/30 text-white rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2"
+                                  >
+                                    <Copy size={16} />
+                                    Save
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setGallery(prev => prev.filter(i => i.id !== item.id));
+                                    }}
+                                    className="p-3 bg-red-500/20 backdrop-blur-md hover:bg-red-500/40 text-red-200 rounded-xl transition-all"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="p-6 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <p className="text-xs font-black text-emerald-600 uppercase tracking-widest">{item.reference}</p>
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{item.date}</p>
+                              </div>
+                              <p className="text-sm text-gray-600 italic font-serif line-clamp-2">"{item.text}"</p>
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+
+                {activeTab === 'profile' && (
+                  <motion.div
+                    key="profile"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    className="space-y-8 pb-12"
+                  >
+                    {profileSubView === 'main' ? (
+                      <>
+                        {/* Profile Header */}
+                        <div className="bg-white rounded-[32px] p-8 border border-black/5 shadow-sm space-y-8 relative overflow-hidden">
+                          {/* Decorative Background Element */}
+                          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-full -mr-16 -mt-16 blur-3xl opacity-50" />
+
+                          <div className="flex flex-col md:flex-row items-center gap-6 relative z-10">
+                            <div className="relative">
+                              <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-emerald-50 shadow-md">
+                                <img
+                                  src={profilePhoto}
+                                  alt="Profile"
+                                  className="w-full h-full object-cover"
+                                  referrerPolicy="no-referrer"
+                                />
+                              </div>
+                              <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handlePhotoUpload}
+                                accept="image/*"
+                                className="hidden"
+                              />
+                              <button
+                                onClick={() => fileInputRef.current?.click()}
+                                className="absolute bottom-0 right-0 p-2 bg-emerald-600 text-white rounded-full shadow-lg border-2 border-white hover:bg-emerald-700 transition-all transform hover:scale-110"
+                              >
+                                <Camera size={14} />
+                              </button>
+                            </div>
+                            <div className="text-center md:text-left flex-1">
+                              <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
+                                <h2 className="text-3xl font-bold text-gray-900 tracking-tight">{name || 'Jerless Mahabir'}</h2>
+                                <div className="px-2 py-0.5 bg-emerald-500 text-white text-[10px] font-bold rounded-full uppercase tracking-wider shadow-sm shadow-emerald-200">Pro</div>
+                              </div>
+                              <p className="text-gray-400 font-medium">{email || 'jerlessm@gmail.com'}</p>
+                              <div className="flex items-center justify-center md:justify-start gap-3 mt-4">
+                                <button onClick={handleEditProfile} className="px-4 py-1.5 bg-gray-900 text-white text-xs font-bold rounded-full hover:bg-black transition-colors">Edit Profile</button>
+                                <button onClick={handleShareProfile} className="px-4 py-1.5 bg-gray-100 text-gray-600 text-xs font-bold rounded-full hover:bg-gray-200 transition-colors">Share Profile</button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Quick Stats Grid */}
+                          <div className="grid grid-cols-3 gap-4 pt-8 border-t border-black/5">
+                            <div className="space-y-1">
+                              <p className="text-2xl font-black text-gray-900 leading-none">{Object.keys(completedChapters).length}</p>
+                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Chapters</p>
+                            </div>
+                            <div className="space-y-1 border-x border-black/5 px-4">
+                              <p className="text-2xl font-black text-gray-900 leading-none">{Object.keys(bookmarks).length}</p>
+                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Saved</p>
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-center gap-1">
+                                <p className="text-2xl font-black text-gray-900 leading-none">12</p>
+                                <Sparkles size={14} className="text-amber-500" />
+                              </div>
+                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Day Streak</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Reading Activity Section */}
+                        <div className="space-y-4">
+                          <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 ml-4">Reading Activity</h3>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-white p-6 rounded-[28px] border border-black/5 shadow-sm space-y-4">
+                              <div className="flex items-center justify-between">
+                                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+                                  <BookOpen size={20} />
+                                </div>
+                                <span className="text-[10px] font-bold text-emerald-600 uppercase bg-emerald-50 px-2 py-1 rounded-md">Last Read</span>
+                              </div>
+                              <button
+                                onClick={() => navigateToVerse(`${currentBook.name} ${currentChapter}`)}
+                                className="text-left group/ref"
+                              >
+                                <h4 className="font-bold text-gray-900 group-hover/ref:text-emerald-600 transition-colors">{currentBook.name} {currentChapter}</h4>
+                                <p className="text-xs text-gray-400 mt-1">Read 2 hours ago</p>
+                              </button>
+                              <button
+                                onClick={() => setActiveTab('bible')}
+                                className="w-full py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100"
+                              >
+                                Continue Reading
+                              </button>
+                            </div>
+                            <div className="bg-white p-6 rounded-[28px] border border-black/5 shadow-sm space-y-4">
+                              <div className="flex items-center justify-between">
+                                <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
+                                  <Calendar size={20} />
+                                </div>
+                                <span className="text-[10px] font-bold text-indigo-600 uppercase bg-indigo-50 px-2 py-1 rounded-md">Daily Goal</span>
+                              </div>
+                              <div>
+                                <h4 className="font-bold text-gray-900">3 Chapters / Day</h4>
+                                <div className="mt-3 space-y-2">
+                                  <div className="flex justify-between text-[10px] font-bold text-gray-400 uppercase">
+                                    <span>Progress</span>
+                                    <span>66%</span>
+                                  </div>
+                                  <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                    <div className="h-full bg-indigo-500 w-[66%] rounded-full" />
+                                  </div>
+                                </div>
+                              </div>
+                              <p className="text-[10px] text-gray-400 font-medium">1 more chapter to reach your goal!</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Reading Statistics */}
+                        <div className="space-y-4">
+                          <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 ml-4">Reading Statistics</h3>
+                          <div className="bg-white p-6 rounded-[28px] border border-black/5 shadow-sm space-y-6">
+                            <div className="flex items-end justify-between h-32 px-2">
+                              {[
+                                { day: 'Mon', height: 'h-[40%]', active: false },
+                                { day: 'Tue', height: 'h-[60%]', active: false },
+                                { day: 'Wed', height: 'h-[30%]', active: false },
+                                { day: 'Thu', height: 'h-[85%]', active: true },
+                                { day: 'Fri', height: 'h-[50%]', active: false },
+                                { day: 'Sat', height: 'h-[70%]', active: false },
+                                { day: 'Sun', height: 'h-[45%]', active: false },
+                              ].map((stat) => (
+                                <div key={stat.day} className="flex flex-col items-center gap-2 flex-1">
+                                  <div className={cn(
+                                    "w-full max-w-[12px] rounded-full transition-all duration-500",
+                                    stat.height,
+                                    stat.active ? "bg-emerald-500 shadow-lg shadow-emerald-100" : "bg-gray-100"
+                                  )} />
+                                  <span className={cn(
+                                    "text-[10px] font-bold",
+                                    stat.active ? "text-emerald-600" : "text-gray-400"
+                                  )}>{stat.day}</span>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-black/5">
+                              <div className="text-center">
+                                <p className="text-sm font-bold text-gray-900">142</p>
+                                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Verses Today</p>
+                              </div>
+                              <div className="text-center border-l border-black/5">
+                                <p className="text-sm font-bold text-gray-900">4.2h</p>
+                                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">This Week</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Achievements */}
+                        <div className="space-y-4">
+                          <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 ml-4">Achievements</h3>
+                          <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2 px-4 -mx-4">
+                            {[
+                              { id: 1, icon: Sparkles, label: 'Early Bird', color: 'text-amber-500', bg: 'bg-amber-50' },
+                              { id: 2, icon: Heart, label: 'Faithful', color: 'text-rose-500', bg: 'bg-rose-50' },
+                              { id: 3, icon: BookOpen, label: 'Scholar', color: 'text-emerald-500', bg: 'bg-emerald-50' },
+                              { id: 4, icon: MessageSquare, label: 'Storyteller', color: 'text-indigo-500', bg: 'bg-indigo-50' },
+                            ].map((achievement) => (
+                              <div key={achievement.id} className="flex-shrink-0 flex flex-col items-center gap-2">
+                                <div className={cn(
+                                  "w-16 h-16 rounded-full flex items-center justify-center shadow-sm border border-black/5",
+                                  achievement.bg,
+                                  achievement.color
+                                )}>
+                                  <achievement.icon size={24} />
+                                </div>
+                                <span className="text-[10px] font-bold text-gray-600 uppercase tracking-wider">{achievement.label}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Account & Content */}
+                        <div className="space-y-4">
+                          <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 ml-4">Account & Content</h3>
+                          <div className="bg-white rounded-[28px] border border-black/5 shadow-sm overflow-hidden">
+                            <button
+                              onClick={() => setProfileSubView('saved')}
+                              className="w-full flex items-center justify-between p-5 hover:bg-gray-50 transition-colors border-b border-black/5 group"
+                            >
+                              <div className="flex items-center gap-4">
+                                <div className="p-2.5 rounded-2xl bg-indigo-50 text-indigo-600 group-hover:scale-110 transition-transform">
+                                  <Bookmark size={20} />
+                                </div>
+                                <div className="text-left">
+                                  <p className="font-bold text-gray-800">Saved Items</p>
+                                  <p className="text-xs text-gray-400">Manage your {Object.keys(bookmarks).length} bookmarks and notes</p>
+                                </div>
+                              </div>
+                              <ChevronRight size={18} className="text-gray-300 group-hover:text-indigo-600 transition-colors" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Reading Experience */}
+                        <div className="space-y-4">
+                          <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 ml-4">Reading Experience</h3>
+                          <div className="bg-white rounded-[28px] border border-black/5 shadow-sm p-6 space-y-6">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className="p-2.5 rounded-2xl bg-gray-50 text-gray-600">
+                                  <Moon size={20} />
+                                </div>
+                                <div className="text-left">
+                                  <p className="font-bold text-gray-800">Reading Mode</p>
+                                  <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Theme & colors</p>
+                                </div>
+                              </div>
+                              <div className="flex bg-gray-100 p-1 rounded-xl">
+                                {(['light', 'sepia', 'dark'] as const).map((mode) => (
+                                  <button
+                                    key={mode}
+                                    onClick={() => updateReadingMode(mode)}
+                                    className={cn(
+                                      "px-4 py-1.5 rounded-lg text-xs font-bold transition-all",
+                                      readingMode === mode
+                                        ? "bg-white text-emerald-600 shadow-sm"
+                                        : "text-gray-400 hover:text-gray-600"
+                                    )}
+                                  >
+                                    {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className="p-2.5 rounded-2xl bg-gray-50 text-gray-600">
+                                  <Type size={20} />
+                                </div>
+                                <div className="text-left">
+                                  <p className="font-bold text-gray-800">Font Size</p>
+                                  <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Adjust reading comfort</p>
+                                </div>
+                              </div>
+                              <div className="flex bg-gray-100 p-1 rounded-xl">
+                                {(['small', 'medium', 'large'] as const).map((size) => (
+                                  <button
+                                    key={size}
+                                    onClick={() => handleFontSizeChange(size)}
+                                    className={cn(
+                                      "px-4 py-1.5 rounded-lg text-xs font-bold transition-all",
+                                      fontSize === size
+                                        ? "bg-white text-emerald-600 shadow-sm"
+                                        : "text-gray-400 hover:text-gray-600"
+                                    )}
+                                  >
+                                    {size.charAt(0).toUpperCase() + size.slice(1)}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className="p-2.5 rounded-2xl bg-gray-50 text-gray-600">
+                                  <Type size={20} />
+                                </div>
+                                <div className="text-left">
+                                  <p className="font-bold text-gray-800">Font Style</p>
+                                  <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Emphasis & weight</p>
+                                </div>
+                              </div>
+                              <div className="flex bg-gray-100 p-1 rounded-xl">
+                                {(['normal', 'bold', 'italic'] as const).map((emphasis) => (
+                                  <button
+                                    key={emphasis}
+                                    onClick={() => handleFontEmphasisChange(emphasis)}
+                                    className={cn(
+                                      "px-4 py-1.5 rounded-lg text-xs font-bold transition-all",
+                                      fontEmphasis === emphasis
+                                        ? "bg-white text-emerald-600 shadow-sm"
+                                        : "text-gray-400 hover:text-gray-600"
+                                    )}
+                                  >
+                                    {emphasis.charAt(0).toUpperCase() + emphasis.slice(1)}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Personalization */}
+                        <div className="space-y-4">
+                          <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 ml-4">Personalization</h3>
+                          <div className="bg-white rounded-[28px] border border-black/5 shadow-sm overflow-hidden p-6 space-y-6">
+
+                            {/* App Theme Accent */}
+                            <div>
+                              <div className="flex items-center justify-between mb-4">
+                                <span className="font-bold text-gray-800 flex items-center gap-3">
+                                  <div className="p-2 bg-gray-100 rounded-xl text-gray-600"><Star size={18} /></div>
+                                  Accent Color
+                                </span>
+                              </div>
+                              <div className="flex gap-4 p-2 bg-gray-50 rounded-2xl justify-between">
+                                {[
+                                  { id: 'emerald', bg: 'bg-emerald-500', name: 'Emerald' },
+                                  { id: 'rose', bg: 'bg-rose-500', name: 'Rose' },
+                                  { id: 'amber', bg: 'bg-amber-500', name: 'Amber' },
+                                  { id: 'blue', bg: 'bg-blue-500', name: 'Ocean' },
+                                  { id: 'purple', bg: 'bg-purple-500', name: 'Royal' },
+                                ].map((swatch) => (
+                                  <button
+                                    key={swatch.id}
+                                    onClick={() => updateThemeColor(swatch.id as any)}
+                                    className={`w-10 h-10 rounded-full outline-none focus:outline-none transition-transform relative
+                                      ${themeColor === swatch.id ? 'scale-110 shadow-lg ring-4 ring-offset-2 ring-gray-200' : 'hover:scale-105 opacity-80 hover:opacity-100'}
+                                      ${swatch.bg}
+                                    `}
+                                  >
+                                    {themeColor === swatch.id && (
+                                      <Check size={16} className="absolute inset-0 m-auto text-white shadow-sm" strokeWidth={3} />
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            <hr className="border-gray-100" />
+
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-gray-800">Push Notifications</span>
+                              <button
+                                onClick={() => setNotificationsEnabled(!notificationsEnabled)}
+                                className={cn(
+                                  "w-14 h-8 rounded-full p-1 transition-colors relative",
+                                  notificationsEnabled ? "bg-[var(--theme-primary)]" : "bg-gray-200"
+                                )}
+                              >
+                                <motion.div
+                                  layout
+                                  className="w-6 h-6 bg-white rounded-full shadow-sm"
+                                  animate={{ x: notificationsEnabled ? 24 : 0 }}
+                                />
+                              </button>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-gray-800">Promotional Emails</span>
+                              <button
+                                onClick={() => setPromoEmails(!promoEmails)}
+                                className={cn(
+                                  "w-14 h-8 rounded-full p-1 transition-colors relative",
+                                  promoEmails ? "bg-[var(--theme-primary)]" : "bg-gray-200"
+                                )}
+                              >
+                                <motion.div
+                                  layout
+                                  className="w-6 h-6 bg-white rounded-full shadow-sm"
+                                  animate={{ x: promoEmails ? 24 : 0 }}
+                                />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Support & Community */}
+                        <div className="space-y-4">
+                          <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 ml-4">Support & Community</h3>
+                          <div className="bg-white rounded-[28px] border border-black/5 shadow-sm overflow-hidden">
+                            {[
+                              { id: 'giving', icon: CreditCard, label: 'My Giving', color: 'text-rose-500', bg: 'bg-rose-50', desc: 'Manage your contributions' },
+                              { id: 'story', icon: Share2, label: 'Share Your Story', color: 'text-purple-500', bg: 'bg-purple-50', desc: 'Inspire others with your journey' },
+                              { id: 'support', icon: HelpCircle, label: 'Help & Support', color: 'text-blue-500', bg: 'bg-blue-50', desc: 'Get assistance or report issues' },
+                              { id: 'about', icon: Info, label: 'About App', color: 'text-gray-500', bg: 'bg-gray-50', desc: 'Version 2.4.0' },
+                            ].map((item) => (
+                              <button
+                                key={item.id}
+                                onClick={() => {
+                                  if (item.id === 'giving') alert('Redirecting to secure giving portal...');
+                                  if (item.id === 'story') alert('Opening story submission form...');
+                                  if (item.id === 'support') window.location.href = 'mailto:support@luminabible.com';
+                                  if (item.id === 'about') alert('Lumina Bible v2.4.0\n\nA modern, beautiful way to read the scripture. Created with love.');
+                                }}
+                                className="w-full flex items-center justify-between p-5 hover:bg-gray-50 transition-colors border-b border-black/5 last:border-0 group"
+                              >
+                                <div className="flex items-center gap-4">
+                                  <div className={cn("p-2.5 rounded-2xl transition-transform group-hover:scale-110", item.bg, item.color)}>
+                                    <item.icon size={20} />
+                                  </div>
+                                  <div className="text-left">
+                                    <p className="font-bold text-gray-800">{item.label}</p>
+                                    <p className="text-xs text-gray-400">{item.desc}</p>
+                                  </div>
+                                </div>
+                                <ChevronRight size={18} className="text-gray-300 group-hover:text-gray-600 transition-colors" />
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Danger Zone */}
+                        <div className="pt-4 space-y-3">
+                          <button
+                            onClick={handleLogout}
+                            className="w-full py-4 flex items-center justify-center gap-2 text-gray-500 font-bold hover:bg-gray-100 rounded-[20px] transition-colors border border-black/5"
+                          >
+                            <LogOut size={18} />
+                            Sign Out
+                          </button>
+                          <button className="w-full py-4 flex items-center justify-center gap-2 text-red-500 font-bold hover:bg-red-50 rounded-[20px] transition-colors">
+                            <Trash2 size={18} />
+                            Delete Account
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="space-y-6">
+                        {/* Header for Saved Items */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <h2 className="text-2xl font-bold text-gray-900">Saved Items</h2>
+                          </div>
+                          {(Object.keys(bookmarks).length > 0 || Object.keys(notes).length > 0) && (
+                            <button
+                              onClick={() => {
+                                if (confirm('Are you sure you want to clear all saved items? This cannot be undone.')) {
+                                  setBookmarks({});
+                                  setNotes({});
+                                  localStorage.removeItem('bible_bookmarks');
+                                  localStorage.removeItem('bible_notes');
+                                }
+                              }}
+                              className="text-xs font-bold text-red-400 hover:text-red-500 transition-colors"
+                            >
+                              Clear All
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Search and Filters */}
+                        <div className="space-y-4">
+                          <div className="relative">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                            <input
+                              type="text"
+                              placeholder="Search bookmarks and notes..."
+                              value={savedSearchQuery}
+                              onChange={(e) => setSavedSearchQuery(e.target.value)}
+                              className="w-full pl-12 pr-4 py-4 bg-white border border-black/5 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all shadow-sm"
+                            />
+                          </div>
+                          <div className="flex gap-2 bg-gray-100 p-1 rounded-2xl">
+                            {(['all', 'bookmarks', 'notes'] as const).map((filter) => (
+                              <button
+                                key={filter}
+                                onClick={() => setSavedFilter(filter)}
+                                className={cn(
+                                  "flex-1 py-2 rounded-xl text-xs font-bold transition-all",
+                                  savedFilter === filter
+                                    ? "bg-white text-emerald-600 shadow-sm"
+                                    : "text-gray-400 hover:text-gray-600"
+                                )}
+                              >
+                                {filter.charAt(0).toUpperCase() + filter.slice(1)}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* List of Items */}
+                        <div className="space-y-4">
+                          {(() => {
+                            const filteredItems = [
+                              ...(Object.entries(bookmarks) as [string, { text: string, reference: string }][]).map(([key, data]) => ({
+                                key,
+                                type: 'bookmark' as const,
+                                text: data.text,
+                                reference: data.reference
+                              })),
+                              ...(Object.entries(notes) as [string, string][]).map(([key, text]) => {
+                                const [book, rest] = key.split(' ');
+                                const [chapter, verse] = rest.split(':');
+                                return {
+                                  key,
+                                  type: 'note' as const,
+                                  text,
+                                  reference: key,
+                                  book_name: book,
+                                  chapter: parseInt(chapter),
+                                  verse: parseInt(verse)
+                                };
+                              })
+                            ].filter(item => {
+                              const matchesSearch = item.text.toLowerCase().includes(savedSearchQuery.toLowerCase()) ||
+                                item.reference.toLowerCase().includes(savedSearchQuery.toLowerCase());
+                              const matchesFilter = savedFilter === 'all' ||
+                                (savedFilter === 'bookmarks' && item.type === 'bookmark') ||
+                                (savedFilter === 'notes' && item.type === 'note');
+                              return matchesSearch && matchesFilter;
+                            });
+
+                            if (filteredItems.length === 0) {
+                              return (
+                                <div className="text-center py-20 bg-white rounded-[32px] border border-black/5 border-dashed">
+                                  <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <Search size={24} className="text-gray-300" />
+                                  </div>
+                                  <p className="text-gray-400 font-medium">No saved items found</p>
+                                </div>
+                              );
+                            }
+
+                            return filteredItems.map((item) => (
+                              <div
+                                key={item.key}
+                                className="bg-white p-6 rounded-[24px] border border-black/5 shadow-sm space-y-4 group"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <button
+                                    onClick={() => navigateToVerse(item.reference)}
+                                    className="flex items-center gap-2 group/ref"
+                                  >
+                                    <div className={cn(
+                                      "p-1.5 rounded-lg transition-colors",
+                                      item.type === 'bookmark' ? "bg-indigo-50 text-indigo-600 group-hover/ref:bg-indigo-100" : "bg-emerald-50 text-emerald-600 group-hover/ref:bg-emerald-100"
+                                    )}>
+                                      {item.type === 'bookmark' ? <Bookmark size={14} /> : <FileText size={14} />}
+                                    </div>
+                                    <span className="font-bold text-gray-900 group-hover/ref:text-emerald-600 transition-colors">{item.reference}</span>
+                                  </button>
+                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {item.type === 'note' && (
+                                      <button
+                                        onClick={() => handleOpenNote({
+                                          book_name: (item as any).book_name,
+                                          chapter: (item as any).chapter,
+                                          verse: (item as any).verse,
+                                          text: item.text
+                                        })}
+                                        className="p-2 hover:bg-gray-100 rounded-full text-gray-400 hover:text-emerald-600 transition-colors"
+                                      >
+                                        <Pencil size={18} />
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => item.type === 'bookmark' ? deleteBookmark(item.key) : deleteNote(item.key)}
+                                      className="p-2 hover:bg-red-50 rounded-full text-gray-400 hover:text-red-500 transition-colors"
+                                    >
+                                      <Trash2 size={18} />
+                                    </button>
+                                  </div>
+                                </div>
+                                <p className={cn(
+                                  "text-gray-600 text-sm leading-relaxed",
+                                  item.type === 'bookmark' ? "italic" : ""
+                                )}>
+                                  {item.type === 'bookmark' ? `"${item.text}"` : item.text}
+                                </p>
+                                <button
+                                  onClick={() => navigateToVerse(item.reference)}
+                                  className="text-xs font-bold text-emerald-600 hover:underline flex items-center gap-1"
+                                >
+                                  View in Bible <ArrowRight size={12} />
+                                </button>
+                              </div>
+                            ));
+                          })()}
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </main>
+
+            {/* Floating Pill Bottom Navigation */}
+            <nav className="fixed bottom-6 left-0 right-0 px-4 z-40 p-[var(--safe-area-inset-bottom)] pointer-events-none flex justify-center">
+              <div className={cn(
+                "mx-auto backdrop-blur-2xl rounded-full p-2 flex items-center shadow-2xl pointer-events-auto transition-all duration-500",
+                readingMode === 'light' ? "bg-white/90 border border-black/5 shadow-black/5" :
+                  readingMode === 'sepia' ? "bg-[#f4ecd8]/90 border border-[#dcd0b0] shadow-[#5b4636]/10" :
+                    "bg-[#1a1a1a]/90 border border-white/10 shadow-black/50"
+              )}>
+                <div className="flex items-center gap-1">
+                  {[
+                    { id: 'home', icon: Home, label: 'Home' },
+                    { id: 'bible', icon: BookOpen, label: 'Bible' },
+                    { id: 'gallery', icon: ImageIcon, label: 'Gallery' },
+                    { id: 'search', icon: Search, label: 'Search' },
+                    { id: 'plans', icon: Calendar, label: 'Plans' },
+                    { id: 'profile', icon: User, label: 'Profile' },
+                  ].map((tab) => {
+                    const isActive = activeTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id as Tab)}
+                        className={cn(
+                          "relative py-3 px-4 flex items-center justify-center rounded-full flex-shrink-0 transition-all duration-500 ease-out",
+                          isActive
+                            ? (readingMode === 'dark' ? "text-emerald-300" : "text-emerald-700")
+                            : (readingMode === 'dark' ? "text-gray-500 hover:text-gray-300" : "text-gray-400 hover:text-gray-600"),
+                          !isActive && "w-14"
+                        )}
+                      >
+                        {/* Animated Active Background Pill */}
+                        {isActive && (
+                          <motion.div
+                            layoutId="navPill"
+                            className={cn(
+                              "absolute inset-0 rounded-full",
+                              readingMode === 'dark' ? "bg-white/10 shadow-inner" :
+                                readingMode === 'sepia' ? "bg-[#e8dec0] shadow-inner" :
+                                  "bg-emerald-50 border border-emerald-100/50"
+                            )}
+                            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                          />
+                        )}
+
+                        <div className="relative z-10 flex items-center gap-2 overflow-hidden">
+                          <tab.icon
+                            size={isActive ? 20 : 22}
+                            strokeWidth={isActive ? 2.5 : 2}
+                            className={cn("transition-all duration-300 flex-shrink-0", isActive && "scale-105")}
+                          />
+                          <AnimatePresence>
+                            {isActive && (
+                              <motion.span
+                                initial={{ width: 0, opacity: 0 }}
+                                animate={{ width: "auto", opacity: 1 }}
+                                exit={{ width: 0, opacity: 0 }}
+                                transition={{ duration: 0.2, ease: "easeInOut" }}
+                                className="text-sm font-bold whitespace-nowrap overflow-hidden"
+                              >
+                                {tab.label}
+                              </motion.span>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </nav>
+
+            {/* Bible Navigator Modal (Styled after image) */}
+            <AnimatePresence>
+              {showNavigator && (
+                <>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setShowNavigator(false)}
+                    className="fixed inset-0 bg-black/40 z-40 backdrop-blur-sm"
+                  />
+                  <motion.div
+                    initial={{ y: '100%', opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: '100%', opacity: 0 }}
+                    transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                    className="fixed inset-x-0 bottom-0 md:inset-0 md:flex md:items-center md:justify-center z-50 p-0 md:p-6 pointer-events-none"
+                  >
+                    <div className={cn(
+                      "w-full md:max-w-xl md:rounded-[24px] rounded-t-[32px] max-h-[90vh] md:max-h-[80vh] overflow-hidden flex flex-col shadow-2xl pointer-events-auto transition-colors duration-500",
+                      readingMode === 'light' ? "bg-white" :
+                        readingMode === 'sepia' ? "bg-[#f4ecd8]" :
+                          "bg-[#1a1a1a]"
+                    )}>
+                      {/* Modal Header */}
+                      <div className={cn(
+                        "px-6 py-4 border-b flex items-center justify-between sticky top-0 z-10",
+                        readingMode === 'light' ? "bg-white border-black/5" :
+                          readingMode === 'sepia' ? "bg-[#f4ecd8] border-[#dcd0b0]" :
+                            "bg-[#1a1a1a] border-white/10"
+                      )}>
+                        <button
+                          onClick={() => setShowNavigator(false)}
+                          className="text-sm font-medium text-gray-500 hover:text-gray-800"
+                        >
+                          Cancel
+                        </button>
+                        <h3 className={cn(
+                          "text-sm font-bold uppercase tracking-widest",
+                          readingMode === 'dark' ? "text-white" : "text-gray-900"
+                        )}>
+                          {navigatorTab === 'book' ? 'Select Book' : navigatorTab === 'chapter' ? 'Select Chapter' : 'Select Version'}
+                        </h3>
+                        <button
+                          onClick={() => setShowNavigator(false)}
+                          className={cn(
+                            "text-sm font-bold",
+                            readingMode === 'dark' ? "text-emerald-400" : "text-emerald-600"
+                          )}
+                        >
+                          Done
+                        </button>
+                      </div>
+
+                      {/* Navigator Tabs */}
+                      <div className={cn(
+                        "flex border-b p-1",
+                        readingMode === 'light' ? "bg-gray-50/50 border-black/5" :
+                          readingMode === 'sepia' ? "bg-[#e8dfc8] border-[#dcd0b0]" :
+                            "bg-[#2a2a2a] border-white/10"
+                      )}>
+                        {[
+                          { id: 'book', label: 'Book' },
+                          { id: 'chapter', label: 'Chapter' },
+                          { id: 'verse', label: 'Verse' },
+                          { id: 'version', label: 'Version' }
+                        ].map(tab => (
+                          <button
+                            key={tab.id}
+                            onClick={() => setNavigatorTab(tab.id as any)}
+                            className={cn(
+                              "flex-1 py-2 text-xs font-bold rounded-lg transition-all",
+                              navigatorTab === tab.id
+                                ? (readingMode === 'dark' ? "bg-[#333333] text-emerald-400 shadow-sm" : "bg-white text-emerald-600 shadow-sm")
+                                : (readingMode === 'dark' ? "text-gray-500 hover:text-gray-300" : "text-gray-400 hover:text-gray-600")
+                            )}
+                          >
+                            {tab.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Search Bar (Only for Book tab) */}
+                      {navigatorTab === 'book' && (
+                        <div className={cn(
+                          "px-6 py-4 border-b",
+                          readingMode === 'dark' ? "border-white/10" : "border-black/5"
+                        )}>
+                          <div className="relative">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                            <input
+                              type="text"
+                              placeholder="Search books..."
+                              value={bookSearchQuery}
+                              onChange={(e) => setBookSearchQuery(e.target.value)}
+                              className={cn(
+                                "w-full pl-12 pr-4 py-3 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all",
+                                readingMode === 'dark' ? "bg-[#2a2a2a] text-white" : "bg-gray-100 text-gray-900"
+                              )}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Content Area */}
+                      <div className="flex-1 overflow-y-auto p-6 no-scrollbar">
+                        {navigatorTab === 'book' && (
+                          <div className="space-y-8">
+                            {/* Testament Filter (Only if not searching) */}
+                            {!bookSearchQuery && (
+                              <div className={cn(
+                                "flex gap-2 mb-6 p-1 rounded-2xl",
+                                readingMode === 'dark' ? "bg-[#2a2a2a]" : "bg-gray-100"
+                              )}>
+                                <button
+                                  onClick={() => setTestamentFilter('OT')}
+                                  className={cn(
+                                    "flex-1 py-2 rounded-xl text-xs font-bold transition-all",
+                                    testamentFilter === 'OT'
+                                      ? (readingMode === 'dark' ? "bg-[#333333] text-emerald-400 shadow-sm" : "bg-white text-emerald-700 shadow-sm")
+                                      : (readingMode === 'dark' ? "text-gray-500 hover:text-gray-300" : "text-gray-400 hover:text-gray-600")
+                                  )}
+                                >
+                                  Old Testament
+                                </button>
+                                <button
+                                  onClick={() => setTestamentFilter('NT')}
+                                  className={cn(
+                                    "flex-1 py-2 rounded-xl text-xs font-bold transition-all",
+                                    testamentFilter === 'NT'
+                                      ? (readingMode === 'dark' ? "bg-[#333333] text-emerald-400 shadow-sm" : "bg-white text-emerald-700 shadow-sm")
+                                      : (readingMode === 'dark' ? "text-gray-500 hover:text-gray-300" : "text-gray-400 hover:text-gray-600")
+                                  )}
+                                >
+                                  New Testament
+                                </button>
+                              </div>
+                            )}
+
+                            {(Object.entries(groupedBooks) as [string, BibleBook[]][]).length > 0 ? (
+                              (Object.entries(groupedBooks) as [string, BibleBook[]][]).map(([category, books]) => (
+                                <div key={category}>
+                                  <h4 className={cn(
+                                    "text-[10px] font-bold uppercase tracking-widest mb-4",
+                                    readingMode === 'dark' ? "text-gray-600" : "text-gray-300"
+                                  )}>
+                                    {category}
+                                  </h4>
+                                  <div className="space-y-1">
+                                    {books.map(book => (
+                                      <button
+                                        key={book.name}
+                                        onClick={() => handleBookSelect(book)}
+                                        className={cn(
+                                          "w-full text-left px-4 py-3 rounded-xl transition-all flex items-center justify-between group",
+                                          currentBook.name === book.name
+                                            ? (readingMode === 'dark' ? "bg-emerald-500/10" : "bg-emerald-50")
+                                            : (readingMode === 'dark' ? "hover:bg-[#2a2a2a]" : "hover:bg-gray-50")
+                                        )}
+                                      >
+                                        <div>
+                                          <p className={cn(
+                                            "text-lg font-medium",
+                                            currentBook.name === book.name
+                                              ? (readingMode === 'dark' ? "text-emerald-400" : "text-emerald-700")
+                                              : (readingMode === 'dark' ? "text-gray-300" : "text-gray-800")
+                                          )}>
+                                            {book.name}
+                                          </p>
+                                          <p className="text-xs text-gray-400">{book.chapters} Chapters</p>
+                                        </div>
+                                        {currentBook.name === book.name && (
+                                          <CheckCircle2 size={20} className={readingMode === 'dark' ? "text-emerald-400" : "text-emerald-500"} />
+                                        )}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <div className="text-center py-12">
+                                <p className="text-gray-400 font-medium">No books found matching "{bookSearchQuery}"</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {navigatorTab === 'chapter' && (
+                          <div className="space-y-6">
+                            <div className="flex items-center justify-between mb-4">
+                              <h4 className="text-sm font-bold text-gray-400">{currentBook.name}</h4>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => {
+                                    const currentIndex = BIBLE_BOOKS.findIndex(b => b.name === currentBook.name);
+                                    if (currentIndex > 0) {
+                                      handleBookSelect(BIBLE_BOOKS[currentIndex - 1]);
+                                      setNavigatorTab('chapter');
+                                    }
+                                  }}
+                                  disabled={BIBLE_BOOKS.findIndex(b => b.name === currentBook.name) === 0}
+                                  className={cn(
+                                    "p-2 rounded-xl border transition-all disabled:opacity-30 disabled:pointer-events-none",
+                                    readingMode === 'dark' ? "bg-[#2a2a2a] border-white/10 text-gray-400 hover:text-emerald-400" : "bg-gray-50 border-black/5 text-gray-400 hover:text-emerald-600"
+                                  )}
+                                  title="Previous Book"
+                                >
+                                  <ChevronLeft size={16} />
+                                </button>
+                                <button
+                                  onClick={() => setNavigatorTab('book')}
+                                  className={cn(
+                                    "px-3 py-2 rounded-xl border text-xs font-bold transition-all",
+                                    readingMode === 'dark' ? "bg-[#2a2a2a] border-white/10 text-gray-400 hover:text-emerald-400" : "bg-gray-50 border-black/5 text-gray-400 hover:text-emerald-600"
+                                  )}
+                                >
+                                  {currentBook.name}
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    const currentIndex = BIBLE_BOOKS.findIndex(b => b.name === currentBook.name);
+                                    if (currentIndex < BIBLE_BOOKS.length - 1) {
+                                      handleBookSelect(BIBLE_BOOKS[currentIndex + 1]);
+                                      setNavigatorTab('chapter');
+                                    }
+                                  }}
+                                  disabled={BIBLE_BOOKS.findIndex(b => b.name === currentBook.name) === BIBLE_BOOKS.length - 1}
+                                  className={cn(
+                                    "p-2 rounded-xl border transition-all disabled:opacity-30 disabled:pointer-events-none",
+                                    readingMode === 'dark' ? "bg-[#2a2a2a] border-white/10 text-gray-400 hover:text-emerald-400" : "bg-gray-50 border-black/5 text-gray-400 hover:text-emerald-600"
+                                  )}
+                                  title="Next Book"
+                                >
+                                  <ChevronRight size={16} />
+                                </button>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-4 sm:grid-cols-6 gap-3">
+                              {Array.from({ length: currentBook.chapters }, (_, i) => i + 1).map(chapter => (
+                                <button
+                                  key={chapter}
+                                  onClick={() => handleChapterSelect(chapter)}
+                                  className={cn(
+                                    "aspect-square flex items-center justify-center rounded-2xl text-lg font-bold transition-all",
+                                    currentChapter === chapter
+                                      ? (readingMode === 'dark' ? "bg-emerald-500 text-white shadow-lg shadow-emerald-900/40 scale-105" : "bg-emerald-600 text-white shadow-lg shadow-emerald-200 scale-105")
+                                      : (readingMode === 'dark' ? "bg-[#2a2a2a] text-gray-500 hover:bg-[#333333]" : "bg-gray-100 text-gray-400 hover:bg-gray-200")
+                                  )}
+                                >
+                                  {chapter}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {navigatorTab === 'verse' && (
+                          <div className="space-y-6">
+                            <div className="flex items-center justify-between mb-4">
+                              <h4 className="text-sm font-bold text-gray-400">{currentBook.name} {currentChapter}</h4>
+                              <div className="flex gap-3">
+                                <button
+                                  onClick={() => setNavigatorTab('chapter')}
+                                  className={cn(
+                                    "text-xs font-bold hover:underline",
+                                    readingMode === 'dark' ? "text-emerald-400" : "text-emerald-600"
+                                  )}
+                                >
+                                  Change Chapter
+                                </button>
+                              </div>
+                            </div>
+                            {loading ? (
+                              <div className="flex flex-col items-center justify-center py-12 gap-3">
+                                <div className={cn(
+                                  "w-6 h-6 border-2 border-t-transparent rounded-full animate-spin",
+                                  readingMode === 'dark' ? "border-emerald-400" : "border-emerald-600"
+                                )} />
+                                <p className="text-xs text-gray-400 font-medium">Loading verses...</p>
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-4 sm:grid-cols-6 gap-3">
+                                {verses.map((v) => (
+                                  <button
+                                    key={v.verse}
+                                    onClick={() => handleVerseSelect(v.verse)}
+                                    className={cn(
+                                      "aspect-square flex items-center justify-center rounded-2xl text-lg font-bold transition-all",
+                                      selectedVerseId === v.verse
+                                        ? (readingMode === 'dark' ? "bg-emerald-500 text-white shadow-lg shadow-emerald-900/40 scale-105" : "bg-emerald-600 text-white shadow-lg shadow-emerald-200 scale-105")
+                                        : (readingMode === 'dark' ? "bg-[#2a2a2a] text-gray-500 hover:bg-[#333333]" : "bg-gray-100 text-gray-400 hover:bg-gray-200")
+                                    )}
+                                  >
+                                    {v.verse}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {navigatorTab === 'version' && (
+                          <div className="space-y-1">
+                            <h4 className={cn(
+                              "text-[10px] font-bold uppercase tracking-widest mb-4",
+                              readingMode === 'dark' ? "text-gray-600" : "text-gray-300"
+                            )}>
+                              English
+                            </h4>
+                            {TRANSLATIONS.map(t => (
+                              <button
+                                key={t.id}
+                                onClick={() => {
+                                  setCurrentTranslation(t);
+                                  setShowNavigator(false);
+                                }}
+                                className={cn(
+                                  "w-full text-left px-4 py-4 rounded-xl transition-all flex items-center justify-between group",
+                                  currentTranslation.id === t.id
+                                    ? (readingMode === 'dark' ? "bg-emerald-500/10" : "bg-emerald-50")
+                                    : (readingMode === 'dark' ? "hover:bg-[#2a2a2a]" : "hover:bg-gray-50")
+                                )}
+                              >
+                                <div>
+                                  <p className={cn(
+                                    "text-lg font-bold",
+                                    currentTranslation.id === t.id
+                                      ? (readingMode === 'dark' ? "text-emerald-400" : "text-emerald-700")
+                                      : (readingMode === 'dark' ? "text-gray-300" : "text-gray-800")
+                                  )}>
+                                    {t.name}
+                                  </p>
+                                  <p className="text-xs text-gray-400">
+                                    {t.id === 'web' ? 'World English Bible' :
+                                      t.id === 'kjv' ? 'King James Version' :
+                                        t.id === 'bbe' ? 'Bible in Basic English' : 'Open English Bible'}
+                                  </p>
+                                </div>
+                                {currentTranslation.id === t.id && (
+                                  <CheckCircle2 size={20} className={readingMode === 'dark' ? "text-emerald-400" : "text-emerald-500"} />
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+
+            {/* Note Modal */}
+            <AnimatePresence>
+              {editingNoteVerse && (
+                <>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setEditingNoteVerse(null)}
+                    className="fixed inset-0 bg-black/40 z-[60] backdrop-blur-sm"
+                  />
+                  <motion.div
+                    initial={{ y: '100%', opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: '100%', opacity: 0 }}
+                    className="fixed inset-x-0 bottom-0 z-[70] p-4 md:p-0 md:inset-0 md:flex md:items-center md:justify-center pointer-events-none"
+                  >
+                    <div className={cn(
+                      "w-full md:max-w-md rounded-[32px] overflow-hidden flex flex-col shadow-2xl pointer-events-auto transition-colors duration-500",
+                      readingMode === 'light' ? "bg-white" :
+                        readingMode === 'sepia' ? "bg-[#f4ecd8]" :
+                          "bg-[#1a1a1a]"
+                    )}>
+                      <div className={cn(
+                        "p-6 border-b flex items-center justify-between",
+                        readingMode === 'light' ? "border-black/5" :
+                          readingMode === 'sepia' ? "border-[#dcd0b0]" :
+                            "border-white/10"
+                      )}>
+                        <h3 className={cn(
+                          "font-bold",
+                          readingMode === 'dark' ? "text-white" : "text-gray-900"
+                        )}>
+                          Note for {editingNoteVerse.book_name} {editingNoteVerse.chapter}:{editingNoteVerse.verse}
+                        </h3>
+                        <button
+                          onClick={() => setEditingNoteVerse(null)}
+                          className={cn(
+                            "p-2 rounded-full transition-colors",
+                            readingMode === 'dark' ? "hover:bg-white/10 text-gray-400" : "hover:bg-gray-100 text-gray-500"
+                          )}
+                        >
+                          <X size={20} />
+                        </button>
+                      </div>
+                      <div className="p-6 space-y-4">
+                        <p className={cn(
+                          "text-sm italic",
+                          readingMode === 'dark' ? "text-gray-500" : "text-gray-400"
+                        )}>"{editingNoteVerse.text}"</p>
+                        <textarea
+                          autoFocus
+                          value={tempNote}
+                          onChange={(e) => setTempNote(e.target.value)}
+                          placeholder="Write your personal reflections here..."
+                          className={cn(
+                            "w-full h-40 p-4 rounded-2xl text-sm focus:outline-none focus:ring-2 transition-all resize-none",
+                            readingMode === 'light' ? "bg-gray-50 text-gray-900 focus:ring-emerald-500/20" :
+                              readingMode === 'sepia' ? "bg-[#e8dfc8] text-[#5b4636] focus:ring-emerald-500/20" :
+                                "bg-[#2a2a2a] text-white focus:ring-emerald-500/20"
+                          )}
+                        />
+                        <div className="flex gap-3">
+                          <button
+                            onClick={() => setEditingNoteVerse(null)}
+                            className={cn(
+                              "flex-1 py-4 rounded-2xl font-bold transition-all",
+                              readingMode === 'dark' ? "bg-[#2a2a2a] text-gray-400 hover:bg-[#333333]" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                            )}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={saveNote}
+                            className={cn(
+                              "flex-1 py-4 rounded-2xl font-bold transition-all shadow-lg transform active:scale-95",
+                              readingMode === 'dark' ? "bg-emerald-500 text-white hover:bg-emerald-400 shadow-emerald-900/40" : "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-200"
+                            )}
+                          >
+                            Save Note
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+            {/* Visualizer Modal */}
+            <AnimatePresence>
+              {visualizingVerse && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setVisualizingVerse(null)}
+                    className="absolute inset-0 bg-black/90 backdrop-blur-md"
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                    className="relative w-full max-w-2xl bg-[#1a1a1a] rounded-[40px] overflow-hidden shadow-2xl border border-white/10"
+                  >
+                    <div className="relative aspect-square w-full bg-black flex items-center justify-center">
+                      {isGeneratingImage ? (
+                        <div className="flex flex-col items-center gap-6 text-center px-12">
+                          <div className="relative">
+                            <div className="w-20 h-20 border-4 border-indigo-500/20 rounded-full animate-ping absolute inset-0" />
+                            <div className="w-20 h-20 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin relative z-10" />
+                          </div>
+                          <div className="space-y-2">
+                            <h3 className="text-2xl font-bold text-white">Creating your vision...</h3>
+                            <p className="text-indigo-300/60 italic font-serif">"And God said, Let there be light..."</p>
+                          </div>
+                        </div>
+                      ) : generatedImage ? (
+                        <motion.img
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          src={generatedImage}
+                          alt="Scripture Visualization"
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <div className="text-center p-12">
+                          <p className="text-red-400">Failed to generate image. Please try again.</p>
+                        </div>
+                      )}
+
+                      <button
+                        onClick={() => setVisualizingVerse(null)}
+                        className="absolute top-6 right-6 p-3 bg-black/50 hover:bg-black/80 text-white rounded-full backdrop-blur-md transition-all border border-white/10"
+                      >
+                        <X size={24} />
+                      </button>
+                    </div>
+
+                    <div className="p-8 space-y-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 flex items-center justify-center text-indigo-400">
+                          <Sparkles size={20} />
+                        </div>
+                        <div>
+                          <h4 className="text-white font-bold text-lg">{currentBook.name} {currentChapter}:{visualizingVerse.verse}</h4>
+                          <p className="text-indigo-300/60 text-xs uppercase tracking-widest font-black">AI Visualization</p>
+                        </div>
+                      </div>
+                      <p className="text-gray-400 italic font-serif text-lg leading-relaxed">
+                        "{visualizingVerse.text}"
+                      </p>
+
+                      <div className="pt-6 flex gap-4">
+                        <button
+                          onClick={() => {
+                            const link = document.createElement('a');
+                            link.href = generatedImage || '';
+                            link.download = `Lumina_${currentBook.name}_${currentChapter}_${visualizingVerse.verse}.png`;
+                            link.click();
+                          }}
+                          disabled={!generatedImage}
+                          className="flex-1 py-4 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2"
+                        >
+                          <Copy size={20} />
+                          Save to Gallery
+                        </button>
+                        <button
+                          onClick={() => setVisualizingVerse(null)}
+                          className="px-8 py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl font-bold transition-all"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
+          </div>
+        )
+        }
+      </AnimatePresence >
+    </div >
+  );
+}
