@@ -25,7 +25,31 @@ const runStartupMigration = async (retries = 5) => {
     try {
         client = await pool.connect();
 
-        // 1. Clean and Prepare Notes
+        // 1. Ensure Tables Exist
+        console.log('  - Checking base tables...');
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS users (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                email TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                display_name TEXT,
+                joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                streak_count INTEGER DEFAULT 0
+            );
+        `);
+
+        // Ensure last_login column exists (if table was created before we added it)
+        await client.query(`
+            DO $$ 
+            BEGIN 
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='last_login') THEN
+                    ALTER TABLE users ADD COLUMN last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+                END IF;
+            END $$;
+        `);
+
+        // 2. Clean and Prepare Notes
         console.log('  - Syncing Notes schema...');
         await client.query(`
             DELETE FROM notes a USING notes b 
@@ -37,7 +61,7 @@ const runStartupMigration = async (retries = 5) => {
             ALTER TABLE notes ADD CONSTRAINT notes_user_verse_unique UNIQUE (user_id, book, chapter, verse);
         `).catch(e => console.log('    Note: constraint exists or handled'));
 
-        // 2. Clean and Prepare Bookmarks
+        // 3. Clean and Prepare Bookmarks
         console.log('  - Syncing Bookmarks schema...');
         await client.query(`
             DELETE FROM bookmarks a USING bookmarks b 
