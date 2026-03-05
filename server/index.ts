@@ -119,8 +119,11 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+import { DB_CONFIG } from './config.js';
+
 app.listen(PORT, async () => {
     console.log(`📡 Server starting on port ${PORT}...`);
+    console.log(`🗄️ Database Host: ${DB_CONFIG.host}`);
     try {
         await runStartupMigration();
     } catch (err) {
