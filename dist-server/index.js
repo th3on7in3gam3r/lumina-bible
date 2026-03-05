@@ -104,6 +104,17 @@ const runStartupMigration = async (retries = 5) => {
                 UNIQUE (user_id, verse_key)
             );
         `);
+        // Ensure highlights unique constraint exists (retroactive)
+        await client.query(`
+            DO $$ BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint 
+                    WHERE conname = 'highlights_user_verse_unique'
+                ) THEN
+                    ALTER TABLE highlights ADD CONSTRAINT highlights_user_verse_unique UNIQUE (user_id, verse_key);
+                END IF;
+            END $$;
+        `).catch(() => { }); // Ignore if already exists
         console.log('✅ All tables ready.');
     }
     catch (err) {
