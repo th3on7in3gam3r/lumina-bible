@@ -3549,7 +3549,7 @@ export default function App() {
                                 reference: data.reference
                               })),
                               ...(Object.entries(notes) as [string, string][]).map(([key, text]) => {
-                                const [book, rest] = key.split(' ');
+                                const [book, rest] = key.split('-');
                                 const [chapter, verse] = rest.split(':');
                                 return {
                                   key,
