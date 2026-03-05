@@ -12,6 +12,11 @@ export const JWT_SECRET = process.env.JWT_SECRET || 'lumina_bible_secret_key_123
 export const PORT = process.env.PORT || 5001;
 export const NODE_ENV = process.env.NODE_ENV || 'development';
 
+// Force allow self-signed certificates
+if (NODE_ENV === 'production' || process.env.DB_URL) {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+}
+
 export const DB_CONFIG = process.env.DB_URL
     ? {
         connectionString: process.env.DB_URL,
