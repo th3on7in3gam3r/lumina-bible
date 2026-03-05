@@ -12,19 +12,18 @@ export const JWT_SECRET = process.env.JWT_SECRET || 'lumina_bible_secret_key_123
 export const PORT = process.env.PORT || 5001;
 export const NODE_ENV = process.env.NODE_ENV || 'development';
 
-// Force allow self-signed certificates
-if (NODE_ENV === 'production' || process.env.DB_URL) {
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-}
+// Hardened Database Configuration for Timescale/Tiger Cloud
+const baseUri = process.env.DB_URL || `postgres://${process.env.DB_USER || 'tsdbadmin'}:${process.env.DB_PASSWORD || 'uhno13880e0wxwpx'}@${process.env.DB_HOST || 'ymm3t71zrg.nfxkdhjqg4.tsdb.cloud.timescale.com'}:${process.env.DB_PORT || '34923'}/${process.env.DB_NAME || 'tsdb'}`;
+
+// Ensure sslmode=require is present in the connection string
+const connectionString = baseUri.includes('sslmode=') ? baseUri : `${baseUri}${baseUri.includes('?') ? '&' : '?'}sslmode=require`;
 
 export const DB_CONFIG = {
-    user: process.env.DB_USER || 'tsdbadmin',
-    host: process.env.DB_HOST || 'ymm3t71zrg.nfxkdhjqg4.tsdb.cloud.timescale.com',
-    database: process.env.DB_NAME || 'tsdb',
-    password: process.env.DB_PASSWORD || 'uhno13880e0wxwpx',
-    port: parseInt(process.env.DB_PORT || '34923'),
+    connectionString,
     ssl: {
         rejectUnauthorized: false
     },
-    connectionTimeoutMillis: 10000,
+    connectionTimeoutMillis: 15000,
+    keepalives: true,
+    max: 10
 };

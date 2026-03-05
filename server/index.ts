@@ -1,5 +1,9 @@
 import express from 'express';
 import cors from 'cors';
+
+// CRITICAL: Force allow self-signed certificates BEFORE any database connections
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 import { PORT, NODE_ENV } from './config.js';
 
 // Routes
@@ -70,13 +74,43 @@ pool.on('error', (err) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/user', dataRoutes);
 
-// Diagnostic Route: Test DB Connection
+// Diagnostic Route: Test DB Connection with deep info
 app.get('/api/test-db', async (req, res) => {
+    const diagnostics = {
+        env: {
+            DB_HOST: !!process.env.DB_HOST,
+            DB_USER: !!process.env.DB_USER,
+            DB_URL: !!process.env.DB_URL,
+            DB_NAME: !!process.env.DB_NAME,
+            DB_PORT: !!process.env.DB_PORT,
+            NODE_ENV: process.env.NODE_ENV
+        },
+        timestamp: new Date().toISOString()
+    };
+
     try {
-        const result = await pool.query('SELECT current_database(), now()');
-        res.json({ success: true, db: result.rows[0], config: { host: process.env.DB_HOST, port: process.env.DB_PORT } });
+        const result = await pool.query('SELECT current_database(), now(), version()');
+        res.json({
+            success: true,
+            db: result.rows[0],
+            diagnostics
+        });
     } catch (err: any) {
-        res.status(500).json({ error: 'DB Connection Failed', details: err.message, code: err.code });
+        // Try to get public IP to help with whitelisting verification
+        let publicIp = 'unknown';
+        try {
+            const ipRes = await fetch('https://api.ipify.org?format=json');
+            const ipData = await ipRes.json();
+            publicIp = ipData.ip;
+        } catch (ipErr) { /* ignore */ }
+
+        res.status(500).json({
+            error: 'DB Connection Failed',
+            details: err.message,
+            code: err.code,
+            serverIp: publicIp,
+            diagnostics
+        });
     }
 });
 
