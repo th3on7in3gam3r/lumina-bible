@@ -2,7 +2,7 @@
     "name": "Lumina Bible",
     "short_name": "Lumina",
     "description": "A premium, distraction-free Bible experience with cloud sync.",
-    "start_url": "/lumina-bible/",
+    "start_url": "/",
     "display": "standalone",
     "background_color": "#0d1f17",
     "theme_color": "#0d1f17",
