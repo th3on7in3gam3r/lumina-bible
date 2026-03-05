@@ -18,9 +18,9 @@ app.use(express.json());
 
 import pool from './db.js';
 
-// Startup Migration: Ensure schema is ready for sync
-const runStartupMigration = async () => {
-    console.log('📦 Running startup migrations...');
+// Startup Migration with Retry
+const runStartupMigration = async (retries = 5) => {
+    console.log(`📦 Running startup migrations (Attempt ${6 - retries}/5)...`);
     let client;
     try {
         client = await pool.connect();
@@ -50,8 +50,13 @@ const runStartupMigration = async () => {
         `).catch(e => console.log('    Note: constraint exists or handled'));
 
         console.log('✅ Startup migrations finished.');
-    } catch (err) {
-        console.error('⚠️ Startup migration warning:', err);
+    } catch (err: any) {
+        console.error(`⚠️ Startup migration attempt failed:`, err.message);
+        if (retries > 0) {
+            console.log(`🔄 Retrying in 5 seconds...`);
+            await new Promise(res => setTimeout(res, 5000));
+            return runStartupMigration(retries - 1);
+        }
     } finally {
         if (client) client.release();
     }
@@ -78,12 +83,14 @@ app.use('/api/user', dataRoutes);
 app.get('/api/test-db', async (req, res) => {
     const diagnostics = {
         env: {
-            DB_HOST: !!process.env.DB_HOST,
-            DB_USER: !!process.env.DB_USER,
-            DB_URL: !!process.env.DB_URL,
-            DB_NAME: !!process.env.DB_NAME,
-            DB_PORT: !!process.env.DB_PORT,
+            HAS_DB_URL: !!process.env.DB_URL,
+            HAS_DB_HOST: !!process.env.DB_HOST,
+            DB_HOST_PREVIEW: process.env.DB_HOST ? `${process.env.DB_HOST.substring(0, 5)}...` : 'none',
             NODE_ENV: process.env.NODE_ENV
+        },
+        config: {
+            host: DB_CONFIG.host || 'via-connection-string',
+            port: DB_CONFIG.port
         },
         timestamp: new Date().toISOString()
     };
@@ -96,7 +103,6 @@ app.get('/api/test-db', async (req, res) => {
             diagnostics
         });
     } catch (err: any) {
-        // Try to get public IP to help with whitelisting verification
         let publicIp = 'unknown';
         try {
             const ipRes = await fetch('https://api.ipify.org?format=json');
