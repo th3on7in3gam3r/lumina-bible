@@ -17,24 +17,39 @@ import pool from './db.js';
 // Startup Migration: Ensure schema is ready for sync
 const runStartupMigration = async () => {
     console.log('📦 Running startup migrations...');
-    const client = await pool.connect();
+    let client;
     try {
-        // Add Unique Constraints if they don't exist (using a DO block or simple try/catch)
-        // 1. Notes Unique Constraint
-        await client.query(`
-            ALTER TABLE notes ADD CONSTRAINT notes_user_verse_unique UNIQUE (user_id, book, chapter, verse);
-        `).catch(() => console.log('✓ Notes constraint already exists or handled.'));
+        client = await pool.connect();
 
-        // 2. Bookmarks Unique Constraint
+        // 1. Clean and Prepare Notes
+        console.log('  - Syncing Notes schema...');
         await client.query(`
+            DELETE FROM notes a USING notes b 
+            WHERE a.id < b.id 
+            AND a.user_id = b.user_id AND a.book = b.book AND a.chapter = b.chapter AND a.verse = b.verse;
+        `);
+        await client.query(`
+            ALTER TABLE notes DROP CONSTRAINT IF EXISTS notes_user_verse_unique;
+            ALTER TABLE notes ADD CONSTRAINT notes_user_verse_unique UNIQUE (user_id, book, chapter, verse);
+        `).catch(e => console.log('    Note: constraint exists or handled'));
+
+        // 2. Clean and Prepare Bookmarks
+        console.log('  - Syncing Bookmarks schema...');
+        await client.query(`
+            DELETE FROM bookmarks a USING bookmarks b 
+            WHERE a.id < b.id 
+            AND a.user_id = b.user_id AND a.book = b.book AND a.chapter = b.chapter AND a.verse = b.verse;
+        `);
+        await client.query(`
+            ALTER TABLE bookmarks DROP CONSTRAINT IF EXISTS bookmarks_user_verse_unique;
             ALTER TABLE bookmarks ADD CONSTRAINT bookmarks_user_verse_unique UNIQUE (user_id, book, chapter, verse);
-        `).catch(() => console.log('✓ Bookmarks constraint already exists or handled.'));
+        `).catch(e => console.log('    Note: constraint exists or handled'));
 
         console.log('✅ Startup migrations finished.');
     } catch (err) {
         console.error('⚠️ Startup migration warning:', err);
     } finally {
-        client.release();
+        if (client) client.release();
     }
 };
 
