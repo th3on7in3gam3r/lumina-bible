@@ -30,7 +30,7 @@ router.post('/signup', async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'Email already exists' });
         }
         console.error('Signup error:', err);
-        res.status(500).json({ error: 'Internal server error' });
+        res.status(500).json({ error: 'Signup failed', details: err.message });
     }
 });
 
@@ -65,9 +65,9 @@ router.post('/login', async (req: Request, res: Response) => {
             },
             token
         });
-    } catch (err) {
+    } catch (err: any) {
         console.error('Login error:', err);
-        res.status(500).json({ error: 'Internal server error' });
+        res.status(500).json({ error: 'Login failed', details: err.message });
     }
 });
 

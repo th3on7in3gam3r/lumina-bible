@@ -70,13 +70,28 @@ pool.on('error', (err) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/user', dataRoutes);
 
+// Diagnostic Route: Test DB Connection
+app.get('/api/test-db', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT current_database(), now()');
+        res.json({ success: true, db: result.rows[0], config: { host: process.env.DB_HOST, port: process.env.DB_PORT } });
+    } catch (err: any) {
+        res.status(500).json({ error: 'DB Connection Failed', details: err.message, code: err.code });
+    }
+});
+
 // Health Check
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 app.listen(PORT, async () => {
-    await runStartupMigration();
+    console.log(`📡 Server starting on port ${PORT}...`);
+    try {
+        await runStartupMigration();
+    } catch (err) {
+        console.error('❌ Failed to complete startup migration:', err);
+    }
     console.log(`
 🚀 Lumina Bible Server Running!
 📡 Port: ${PORT}
