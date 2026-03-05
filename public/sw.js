@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lumina-bible-v4';
+const CACHE_NAME = 'lumina-bible-v5';
 const ASSETS = [
     '/lumina-bible/',
     '/lumina-bible/index.html',
@@ -25,5 +25,9 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
+    // Bypass Service Worker for API calls and non-GET requests
+    if (e.request.url.includes('/api/') || e.request.method !== 'GET') {
+        return;
+    }
     e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
 });
