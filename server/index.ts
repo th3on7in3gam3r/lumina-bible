@@ -9,11 +9,7 @@ import dataRoutes from './data.js';
 const app = express();
 
 // Middleware
-app.use(cors({
-    origin: '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-}));
+app.use(cors()); // Allow all origins during production push for maximum compatibility
 app.use(express.json());
 
 // API Routes
