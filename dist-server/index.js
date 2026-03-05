@@ -59,29 +59,51 @@ const runStartupMigration = async (retries = 5) => {
                 END IF;
             END $$;
         `);
-        // 2. Clean and Prepare Notes
-        console.log('  - Syncing Notes schema...');
+        // 2. Create missing tables
+        console.log('  - Ensuring all tables exist...');
         await client.query(`
-            DELETE FROM notes a USING notes b 
-            WHERE a.id < b.id 
-            AND a.user_id = b.user_id AND a.book = b.book AND a.chapter = b.chapter AND a.verse = b.verse;
+            CREATE TABLE IF NOT EXISTS notes (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                book TEXT NOT NULL,
+                chapter INTEGER NOT NULL,
+                verse INTEGER NOT NULL,
+                content TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (user_id, book, chapter, verse)
+            );
         `);
         await client.query(`
-            ALTER TABLE notes DROP CONSTRAINT IF EXISTS notes_user_verse_unique;
-            ALTER TABLE notes ADD CONSTRAINT notes_user_verse_unique UNIQUE (user_id, book, chapter, verse);
-        `).catch(e => console.log('    Note: constraint exists or handled'));
-        // 3. Clean and Prepare Bookmarks
-        console.log('  - Syncing Bookmarks schema...');
-        await client.query(`
-            DELETE FROM bookmarks a USING bookmarks b 
-            WHERE a.id < b.id 
-            AND a.user_id = b.user_id AND a.book = b.book AND a.chapter = b.chapter AND a.verse = b.verse;
+            CREATE TABLE IF NOT EXISTS bookmarks (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                book TEXT NOT NULL,
+                chapter INTEGER NOT NULL,
+                verse INTEGER NOT NULL,
+                reference TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (user_id, book, chapter, verse)
+            );
         `);
         await client.query(`
-            ALTER TABLE bookmarks DROP CONSTRAINT IF EXISTS bookmarks_user_verse_unique;
-            ALTER TABLE bookmarks ADD CONSTRAINT bookmarks_user_verse_unique UNIQUE (user_id, book, chapter, verse);
-        `).catch(e => console.log('    Note: constraint exists or handled'));
-        console.log('✅ Startup migrations finished.');
+            CREATE TABLE IF NOT EXISTS reading_progress (
+                user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+                active_plan_id TEXT,
+                completed_chapters JSONB DEFAULT '{}',
+                last_read_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS highlights (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                verse_key TEXT NOT NULL,
+                color TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        console.log('✅ All tables ready.');
     }
     catch (err) {
         console.error(`⚠️ Startup migration attempt failed:`, err.message);
