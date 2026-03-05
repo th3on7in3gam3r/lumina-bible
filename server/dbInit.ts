@@ -51,7 +51,8 @@ const initializeDatabase = async () => {
         verse INTEGER NOT NULL,
         content TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (user_id, book, chapter, verse)
       );
     `);
     console.log('✓ Notes table ready');
@@ -65,7 +66,8 @@ const initializeDatabase = async () => {
         chapter INTEGER NOT NULL,
         verse INTEGER NOT NULL,
         reference TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (user_id, book, chapter, verse)
       );
     `);
     console.log('✓ Bookmarks table ready');

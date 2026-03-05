@@ -12,7 +12,19 @@ const app = express();
 app.use(cors()); // Allow all origins during production push for maximum compatibility
 app.use(express.json());
 
-// API Routes
+// Global Error Handlers (Prevent 502/Crash)
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception:', err);
+});
+
+import pool from './db.js';
+pool.on('error', (err) => {
+    console.error('Unexpected error on idle client', err);
+});
 app.use('/api/auth', authRoutes);
 app.use('/api/user', dataRoutes);
 
