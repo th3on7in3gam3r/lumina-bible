@@ -747,6 +747,39 @@ export default function App() {
       setEmail(res.user.email);
       setCurrentUser(res.user);
       setIsAuthenticated(true);
+
+      // Load server data into local state (cross-device sync)
+      try {
+        const serverData = await dbService.fetchUserData();
+
+        // Merge bookmarks from server into local state
+        if (serverData.bookmarks?.length) {
+          const serverBookmarks: Record<string, { text: string; reference: string }> = {};
+          for (const bm of serverData.bookmarks) {
+            const key = `${bm.book}-${bm.chapter}:${bm.verse}`;
+            serverBookmarks[key] = { text: bm.reference, reference: bm.reference };
+          }
+          setBookmarks(prev => ({ ...serverBookmarks, ...prev }));
+        }
+
+        // Merge notes from server into local state
+        if (serverData.notes?.length) {
+          const serverNotes: Record<string, string> = {};
+          for (const n of serverData.notes) {
+            const key = `${n.book}-${n.chapter}:${n.verse}`;
+            serverNotes[key] = n.content;
+          }
+          setNotes(prev => ({ ...serverNotes, ...prev }));
+        }
+
+        // Load reading progress from server
+        if (serverData.progress) {
+          if (serverData.progress.active_plan_id) setActivePlanId(serverData.progress.active_plan_id);
+          if (serverData.progress.completed_chapters) setCompletedChapters(serverData.progress.completed_chapters);
+        }
+      } catch (fetchErr) {
+        console.warn('Could not load server data after login:', fetchErr);
+      }
     } catch (err: any) {
       setAuthError(err.message);
     } finally {
