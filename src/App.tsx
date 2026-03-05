@@ -383,12 +383,18 @@ export default function App() {
         return { book, chapter: parseInt(chapter), verse: parseInt(verse), reference: bm.reference };
       });
 
+      // Format highlights for DB
+      const dbHighlights = Object.entries(highlights).map(([verse_key, color]) => ({
+        verse_key, color
+      }));
+
       await dbService.syncData({
         notes: dbNotes,
         bookmarks: dbBookmarks,
-        progress: { activePlanId, completedChapters }
+        progress: { activePlanId, completedChapters },
+        highlights: dbHighlights
       });
-      console.log('☁️ Data synced to Tiger Cloud');
+      console.log('☁️ Data synced to cloud');
     } catch (err) {
       console.error('Failed to sync with DB:', err);
     } finally {
@@ -776,6 +782,14 @@ export default function App() {
         if (serverData.progress) {
           if (serverData.progress.active_plan_id) setActivePlanId(serverData.progress.active_plan_id);
           if (serverData.progress.completed_chapters) setCompletedChapters(serverData.progress.completed_chapters);
+        }
+        // Load highlights from server
+        if (serverData.highlights?.length) {
+          const serverHighlights: Record<string, string> = {};
+          for (const h of serverData.highlights) {
+            serverHighlights[h.verse_key] = h.color;
+          }
+          setHighlights(prev => ({ ...serverHighlights, ...prev }));
         }
       } catch (fetchErr) {
         console.warn('Could not load server data after login:', fetchErr);

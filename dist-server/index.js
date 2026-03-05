@@ -100,7 +100,8 @@ const runStartupMigration = async (retries = 5) => {
                 user_id UUID REFERENCES users(id) ON DELETE CASCADE,
                 verse_key TEXT NOT NULL,
                 color TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (user_id, verse_key)
             );
         `);
         console.log('✅ All tables ready.');

@@ -76,6 +76,19 @@ router.post('/sync', authenticateToken, async (req: AuthRequest, res: Response) 
             );
         }
 
+        // 4. Sync Highlights (Upsert by verse_key)
+        const { highlights } = req.body;
+        if (highlights && Array.isArray(highlights)) {
+            for (const h of highlights) {
+                await client.query(
+                    `INSERT INTO highlights (user_id, verse_key, color)
+                     VALUES ($1, $2, $3)
+                     ON CONFLICT (user_id, verse_key) DO UPDATE SET color = EXCLUDED.color`,
+                    [userId, h.verse_key, h.color]
+                );
+            }
+        }
+
         await client.query('COMMIT');
         res.json({ success: true, timestamp: new Date().toISOString() });
     } catch (err: any) {
