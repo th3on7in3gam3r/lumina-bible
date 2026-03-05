@@ -24,8 +24,8 @@ function buildDbConfig() {
             return {
                 user: url.username || process.env.DB_USER || 'tsdbadmin',
                 password: url.password || process.env.DB_PASSWORD || 'uhno13880e0wxwpx',
-                host: url.hostname || process.env.DB_HOST || 'ymm3t71zrg.nfxkdhjqg4.tsdb.cloud.timescale.com',
-                port: parseInt(url.port || process.env.DB_PORT || '34923'),
+                host: url.hostname || process.env.DB_HOST || 'localhost',
+                port: parseInt(url.port || process.env.DB_PORT || '5432'),
                 database: url.pathname.replace('/', '') || process.env.DB_NAME || 'tsdb',
                 ssl: { rejectUnauthorized: false },
                 connectionTimeoutMillis: 15000,
