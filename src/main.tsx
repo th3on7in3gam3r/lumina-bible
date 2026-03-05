@@ -11,7 +11,7 @@ createRoot(document.getElementById('root')!).render(
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/lumina-bible/sw.js').then((reg) => {
+    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).then((reg) => {
       console.log('SW register success:', reg);
     }, (err) => {
       console.log('SW register fail:', err);

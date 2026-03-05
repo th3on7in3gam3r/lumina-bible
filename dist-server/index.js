@@ -11,6 +11,7 @@ const app = express();
 const ALLOWED_ORIGINS = [
     'https://biblefunland.com',
     'https://www.biblefunland.com',
+    'https://lumina.biblefunland.com',
     'http://localhost:5173',
     'http://localhost:3000',
     'http://localhost:5001'
