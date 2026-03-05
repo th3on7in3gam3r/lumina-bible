@@ -12,8 +12,22 @@ import dataRoutes from './data.js';
 
 const app = express();
 
+// CORS: Must be placed before any routes and uses explicit headers
+// so that even 500 error responses carry the Access-Control-Allow-Origin header
+const ALLOWED_ORIGINS = ['https://biblefunland.com', 'http://localhost:5173', 'http://localhost:5001'];
+app.use((req, res, next) => {
+    const origin = req.headers.origin as string;
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin || '*');
+    }
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    if (req.method === 'OPTIONS') return res.sendStatus(200);
+    next();
+});
+
 // Middleware
-app.use(cors()); // Allow all origins during production push for maximum compatibility
 app.use(express.json());
 
 import pool from './db.js';
