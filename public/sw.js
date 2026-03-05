@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lumina-bible-v2';
+const CACHE_NAME = 'lumina-bible-v3';
 const ASSETS = [
     '/lumina-bible/',
     '/lumina-bible/index.html',
@@ -6,7 +6,7 @@ const ASSETS = [
     '/lumina-bible/icon-192.png',
     '/lumina-bible/icon-512.png',
     '/lumina-bible/favicon.png',
-    '/lumina-bible/assets/index-KInlSePu.js',
+    '/lumina-bible/assets/index-DH7FAYvY.js',
     '/lumina-bible/assets/index-BwE9mvh6.css'
 ];
 
