@@ -1,0 +1,12 @@
+Options -MultiViews
+RewriteEngine On
+
+# Proxy /api requests to the Node.js server running on port 3001
+RewriteCond %{REQUEST_URI} ^/lumina-bible/api [NC]
+RewriteRule ^lumina-bible/api/(.*)$ http://127.0.0.1:3001/api/$1 [P,L]
+
+# Handle SPA routing — serve index.html for all other routes
+RewriteBase /lumina-bible/
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /lumina-bible/index.html [L]

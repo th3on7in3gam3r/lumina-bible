@@ -6,10 +6,12 @@
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
+    "build:server": "tsc --project tsconfig.server.json",
+    "build:all": "npm run build && npm run build:server",
     "preview": "vite preview",
-    "clean": "rm -rf dist",
+    "clean": "rm -rf dist dist-server",
     "lint": "tsc --noEmit",
-    "start": "tsx server/index.ts",
+    "start": "node dist-server/index.js",
     "server": "tsx server/index.ts",
     "db:init": "tsx server/dbInit.ts"
   },
