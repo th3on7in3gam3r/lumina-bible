@@ -78,10 +78,14 @@ router.post('/sync', authenticateToken, async (req: AuthRequest, res: Response) 
 
         await client.query('COMMIT');
         res.json({ success: true, timestamp: new Date().toISOString() });
-    } catch (err) {
+    } catch (err: any) {
         if (client) await client.query('ROLLBACK');
         console.error('CRITICAL SYNC ERROR:', err);
-        res.status(500).json({ error: 'Database synchronization failed' });
+        res.status(500).json({
+            error: 'Database synchronization failed',
+            details: err.message,
+            code: err.code
+        });
     } finally {
         if (client) client.release();
     }
