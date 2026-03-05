@@ -17,16 +17,14 @@ if (NODE_ENV === 'production' || process.env.DB_URL) {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 }
 
-export const DB_CONFIG = process.env.DB_URL
-    ? {
-        connectionString: process.env.DB_URL,
-        ssl: { rejectUnauthorized: false }
-    }
-    : {
-        host: process.env.DB_HOST,
-        port: parseInt(process.env.DB_PORT || '34923'),
-        database: process.env.DB_NAME,
-        user: process.env.DB_USER,
-        password: process.env.DB_PASSWORD,
-        ssl: { rejectUnauthorized: false }
-    };
+export const DB_CONFIG = {
+    user: process.env.DB_USER || 'tsdbadmin',
+    host: process.env.DB_HOST || 'ymm3t71zrg.nfxkdhjqg4.tsdb.cloud.timescale.com',
+    database: process.env.DB_NAME || 'tsdb',
+    password: process.env.DB_PASSWORD || 'uhno13880e0wxwpx',
+    port: parseInt(process.env.DB_PORT || '34923'),
+    ssl: {
+        rejectUnauthorized: false
+    },
+    connectionTimeoutMillis: 10000,
+};

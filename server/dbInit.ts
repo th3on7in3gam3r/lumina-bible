@@ -9,18 +9,10 @@ const __dirname = path.dirname(__filename);
 // Load env from root
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
-const { Pool } = pg;
+import { DB_CONFIG } from './config.js';
 
-const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASSWORD,
-  port: parseInt(process.env.DB_PORT || '34374'),
-  ssl: {
-    rejectUnauthorized: false
-  }
-});
+const { Pool } = pg;
+const pool = new Pool(DB_CONFIG);
 
 const initializeDatabase = async () => {
   const client = await pool.connect();
