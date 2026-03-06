@@ -1554,7 +1554,7 @@ export default function App() {
               />
             )}
             {/* Header (Contextual) */}
-            <header className="sticky top-0 z-30 bg-black/20 backdrop-blur-xl border-b border-white/5 px-6 pt-12 pb-4">
+            <header className="sticky top-0 z-30 bg-black/20 backdrop-blur-xl border-b border-white/5 px-6 pt-6 md:pt-12 pb-4">
               <div className="max-w-2xl mx-auto">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
@@ -1569,11 +1569,11 @@ export default function App() {
                 </div>
                 {/* Removed redundant profile icon button */}
                 {activeTab === 'home' && (
-                  <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-                    <h1 className="text-4xl font-bold tracking-tight mb-2">
+                  <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="pt-2 md:pt-0">
+                    <h1 className="text-3xl md:text-5xl font-bold tracking-tight mb-2">
                       Good <span className="text-[var(--theme-primary)]">{greeting}</span> {firstName}
                     </h1>
-                    <p className="text-gray-400 font-medium">
+                    <p className="text-gray-400 font-medium text-sm md:text-base">
                       {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                     </p>
                   </motion.div>
@@ -1893,10 +1893,10 @@ export default function App() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <button
                         onClick={() => setActiveTab('bible')}
-                        className="group relative bg-gray-900 text-white p-8 rounded-[32px] overflow-hidden transition-all hover:scale-[1.02] active:scale-[0.98]"
+                        className="group relative bg-gray-900 text-white p-6 md:p-8 rounded-[32px] overflow-hidden transition-all hover:scale-[1.02] active:scale-[0.98]"
                       >
                         <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-colors" />
-                        <div className="relative z-10 flex flex-col h-full justify-between gap-8">
+                        <div className="relative z-10 flex flex-col h-full justify-between gap-6 md:gap-8">
                           <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center">
                             <BookOpen size={24} />
                           </div>
@@ -1913,7 +1913,7 @@ export default function App() {
                       <div className="grid grid-rows-2 gap-4">
                         <button
                           onClick={() => setActiveTab('plans')}
-                          className="group bg-white/5 backdrop-blur-xl border border-white/10 p-6 rounded-[28px] flex items-center justify-between hover:bg-white/10 transition-all hover:shadow-md"
+                          className="group bg-white/5 backdrop-blur-xl border border-white/10 p-5 md:p-6 rounded-[28px] flex items-center justify-between hover:bg-white/10 transition-all hover:shadow-md"
                         >
                           <div className="flex items-center gap-4">
                             <div className="w-12 h-12 rounded-2xl bg-[color-mix(in_srgb,var(--theme-primary)_10%,white)] text-[var(--theme-primary)] flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -1929,7 +1929,7 @@ export default function App() {
 
                         <button
                           onClick={() => setActiveTab('ask')}
-                          className="group bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-fixed border border-white/10 p-6 rounded-[28px] flex items-center justify-between hover:border-[color-mix(in_srgb,var(--theme-primary)_40%,white)] transition-all hover:shadow-lg relative overflow-hidden"
+                          className="group bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-fixed border border-white/10 p-5 md:p-6 rounded-[28px] flex items-center justify-between hover:border-[color-mix(in_srgb,var(--theme-primary)_40%,white)] transition-all hover:shadow-lg relative overflow-hidden"
                           style={{ backgroundBlendMode: 'overlay', backgroundColor: 'rgba(255, 255, 255, 0.05)' }}
                         >
                           <div className="absolute top-0 right-0 w-32 h-32 bg-[var(--theme-primary)]/20 rounded-full blur-3xl group-hover:bg-[var(--theme-primary)]/30 transition-colors" />
@@ -2949,21 +2949,21 @@ export default function App() {
                           </div>
 
                           {/* Quick Stats Grid */}
-                          <div className="grid grid-cols-3 gap-4 pt-8 border-t border-white/10">
-                            <div className="space-y-1">
-                              <p className="text-2xl font-black text-white leading-none">{Object.keys(completedChapters).length}</p>
-                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Chapters</p>
+                          <div className="grid grid-cols-3 gap-2 md:gap-4 pt-6 md:pt-8 border-t border-white/10">
+                            <div className="space-y-1 bg-white/5 md:bg-transparent p-3 md:p-0 rounded-[20px]">
+                              <p className="text-xl md:text-2xl font-black text-white leading-none text-center md:text-left">{Object.keys(completedChapters).length}</p>
+                              <p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center md:text-left break-words">Chapters</p>
                             </div>
-                            <div className="space-y-1 border-x border-white/10 px-4">
-                              <p className="text-2xl font-black text-white leading-none">{Object.keys(bookmarks).length}</p>
-                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Saved</p>
+                            <div className="space-y-1 bg-white/5 md:bg-transparent p-3 md:p-0 rounded-[20px] md:rounded-none md:border-x border-white/10 md:px-4">
+                              <p className="text-xl md:text-2xl font-black text-white leading-none text-center md:text-left">{Object.keys(bookmarks).length}</p>
+                              <p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center md:text-left break-words">Saved</p>
                             </div>
-                            <div className="space-y-1">
-                              <div className="flex items-center justify-center gap-1">
-                                <p className="text-2xl font-black text-white leading-none">{streak}</p>
+                            <div className="space-y-1 bg-white/5 md:bg-transparent p-3 md:p-0 rounded-[20px]">
+                              <div className="flex items-center justify-center md:justify-start gap-1">
+                                <p className="text-xl md:text-2xl font-black text-white leading-none text-center md:text-left">{streak}</p>
                                 <Sparkles size={14} className="text-amber-500" />
                               </div>
-                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Day Streak</p>
+                              <p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center md:text-left break-words">Day Streak</p>
                             </div>
                           </div>
                         </div>
