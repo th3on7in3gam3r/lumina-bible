@@ -1769,29 +1769,30 @@ export default function App() {
 
                 {activeTab === 'profile' && (
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3 md:gap-4">
                       {profileSubView !== 'main' && (
                         <button
                           onClick={() => setProfileSubView('main')}
-                          className="p-2 hover:bg-white/50 rounded-full transition-colors"
+                          className="p-1.5 md:p-2 hover:bg-white/50 rounded-full transition-colors"
                         >
-                          <ArrowLeft size={24} />
+                          <ArrowLeft size={24} className="scale-75 md:scale-100" />
                         </button>
                       )}
                       <div>
-                        <h1 className="text-3xl font-bold tracking-tight">
+                        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
                           {profileSubView === 'main' ? 'Settings' : 'Saved Items'}
                         </h1>
-                        <p className="text-gray-400 font-medium">
+                        <p className="text-[11px] md:text-sm text-gray-400 font-medium">
                           {profileSubView === 'main' ? 'Manage your account' : 'Bookmarks & Notes'}
                         </p>
                       </div>
                     </div>
                     <button
                       onClick={handleLogout}
-                      className="p-2.5 bg-white/5 backdrop-blur-xl border border-white/10 rounded-full shadow-sm border border-white/10 text-gray-500 hover:text-red-500 transition-colors"
+                      className="p-2 md:p-2.5 bg-white/5 backdrop-blur-xl border border-white/10 rounded-full shadow-sm text-gray-500 hover:text-red-500 transition-colors"
+                      title="Log out"
                     >
-                      <LogOut size={20} />
+                      <LogOut size={18} className="md:w-5 md:h-5" />
                     </button>
                   </div>
                 )}
@@ -2900,12 +2901,12 @@ export default function App() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
-                    className="space-y-8 pb-12"
+                    className="space-y-6 md:space-y-8 pb-32 md:pb-12"
                   >
                     {profileSubView === 'main' ? (
                       <>
                         {/* Profile Header */}
-                        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[32px] p-8 border border-white/10 shadow-sm space-y-8 relative overflow-hidden">
+                        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[28px] md:rounded-[32px] p-6 md:p-8 shadow-sm space-y-6 md:space-y-8 relative overflow-hidden">
                           {/* Decorative Background Element */}
                           <div className="absolute top-0 right-0 w-32 h-32 bg-[color-mix(in_srgb,var(--theme-primary)_10%,white)] rounded-full -mr-16 -mt-16 blur-3xl opacity-50" />
 
@@ -2941,9 +2942,9 @@ export default function App() {
                                 </div>
                               </div>
                               <p className="text-gray-400 font-medium">{email || 'user@luminabible.com'}</p>
-                              <div className="flex items-center justify-center md:justify-start gap-3 mt-4">
-                                <button onClick={handleEditProfile} className="px-4 py-1.5 bg-[var(--theme-primary)] text-white text-xs font-bold rounded-full hover:bg-[var(--theme-primary-600)] transition-colors shadow-lg shadow-[color-mix(in_srgb,var(--theme-primary)_20%,transparent)]">Edit Profile</button>
-                                <button onClick={handleShareProfile} className="px-4 py-1.5 bg-white/10 border border-white/20 text-gray-200 text-xs font-bold rounded-full hover:bg-white/20 transition-colors">Share Profile</button>
+                              <div className="flex items-center justify-center md:justify-start gap-2 md:gap-3 mt-4 flex-wrap">
+                                <button onClick={handleEditProfile} className="px-5 py-2 md:px-4 md:py-1.5 bg-[var(--theme-primary)] text-white text-[11px] md:text-xs font-bold rounded-full hover:bg-[var(--theme-primary-600)] transition-colors shadow-lg shadow-[color-mix(in_srgb,var(--theme-primary)_20%,transparent)] flex-1 md:flex-none">Edit Profile</button>
+                                <button onClick={handleShareProfile} className="px-5 py-2 md:px-4 md:py-1.5 bg-white/10 border border-white/20 text-gray-200 text-[11px] md:text-xs font-bold rounded-full hover:bg-white/20 transition-colors flex-1 md:flex-none">Share Profile</button>
                               </div>
                             </div>
                           </div>
@@ -2972,7 +2973,7 @@ export default function App() {
                         <div className="space-y-4">
                           <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 ml-4">Reading Activity</h3>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-6 rounded-[28px] space-y-4">
+                            <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-5 md:p-6 rounded-[24px] md:rounded-[28px] space-y-4">
                               <div className="flex items-center justify-between">
                                 <div className="p-2 rounded-xl bg-[color-mix(in_srgb,var(--theme-primary)_10%,white)] text-[var(--theme-primary)]">
                                   <BookOpen size={20} />
@@ -2993,7 +2994,7 @@ export default function App() {
                                 Continue Reading
                               </button>
                             </div>
-                            <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-6 rounded-[28px] space-y-4">
+                            <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-5 md:p-6 rounded-[24px] md:rounded-[28px] space-y-4">
                               <div className="flex items-center justify-between">
                                 <div className="p-2 rounded-xl bg-white/10 text-[var(--theme-primary-400)]">
                                   <Calendar size={20} />
@@ -3027,7 +3028,7 @@ export default function App() {
                         {/* Reading Statistics */}
                         <div className="space-y-4">
                           <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 ml-4">Reading Statistics</h3>
-                          <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-6 rounded-[28px] space-y-6">
+                          <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-5 md:p-6 rounded-[24px] md:rounded-[28px] space-y-6">
                             <div className="flex items-end justify-between h-32 px-2">
                               {(() => {
                                 const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -3117,7 +3118,7 @@ export default function App() {
                               ))}
                             </div>
                           ) : (
-                            <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-8 rounded-[28px] text-center">
+                            <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-6 md:p-8 rounded-[24px] md:rounded-[28px] text-center">
                               <p className="text-xs text-gray-500 italic">No badges earned yet. Keep reading to unlock achievements!</p>
                             </div>
                           )}
@@ -3164,7 +3165,7 @@ export default function App() {
                         {/* Reading Experience */}
                         <div className="space-y-4">
                           <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 ml-4">Reading Experience</h3>
-                          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[28px] border border-white/10 shadow-sm p-6 space-y-6">
+                          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[24px] md:rounded-[28px] border border-white/10 shadow-sm p-5 md:p-6 space-y-5 md:space-y-6">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-3">
                                 <div className="p-2.5 rounded-2xl bg-white/10 text-[var(--theme-primary-400)]">
