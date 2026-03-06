@@ -1580,9 +1580,9 @@ export default function App() {
                 )}
 
                 {activeTab === 'bible' && (
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
                     <div className={cn(
-                      "flex items-center gap-1 p-1.5 rounded-2xl shadow-sm border transition-colors backdrop-blur-md flex-1",
+                      "flex items-center gap-1 p-1.5 rounded-2xl shadow-sm border transition-colors backdrop-blur-md w-full md:flex-1 shrink-0",
                       readingMode === 'light' ? "bg-black/20 backdrop-blur-md border-white/10" :
                         readingMode === 'sepia' ? "bg-[#e8dfc8]/90 border-[#dcd0b0]" :
                           "bg-[#2a2a2a]/90 border-white/10"
@@ -1634,12 +1634,12 @@ export default function App() {
                       </button>
                     </div>
 
-                    <div className="flex items-center gap-2 ml-3">
+                    <div className="flex items-center gap-2 overflow-x-auto no-scrollbar max-w-full pb-2 -mx-2 px-2 md:mx-0 md:px-0 md:pb-0 scroll-smooth md:ml-3 snap-x">
                       {/* Audio Toggle */}
                       <button
                         onClick={toggleAudio}
                         className={cn(
-                          "w-11 h-11 flex items-center justify-center rounded-2xl transition-all shadow-sm border",
+                          "w-11 h-11 flex items-center justify-center rounded-2xl transition-all shadow-sm border shrink-0 snap-center",
                           isReading
                             ? "bg-amber-500 text-white border-amber-400 animate-pulse shadow-amber-200"
                             : readingMode === 'light' ? "bg-white border-white/10 text-gray-500 hover:text-amber-500" :
@@ -1653,7 +1653,7 @@ export default function App() {
                       <button
                         onClick={handleSermonToggle}
                         className={cn(
-                          "w-11 h-11 flex items-center justify-center rounded-2xl transition-all shadow-sm border",
+                          "w-11 h-11 flex items-center justify-center rounded-2xl transition-all shadow-sm border shrink-0 snap-center",
                           isSermonListening
                             ? "bg-green-500 text-white border-green-400 animate-pulse shadow-green-200"
                             : readingMode === 'light' ? "bg-white border-white/10 text-gray-500 hover:text-green-500" :
@@ -1668,7 +1668,7 @@ export default function App() {
                       <button
                         onClick={() => setShowSermonNotesPanel(true)}
                         className={cn(
-                          "w-11 h-11 flex items-center justify-center rounded-2xl transition-all shadow-sm border relative",
+                          "w-11 h-11 flex items-center justify-center rounded-2xl transition-all shadow-sm border relative shrink-0 snap-center",
                           showSermonNotesPanel
                             ? "bg-[var(--theme-primary)] text-white border-[var(--theme-primary-400)] shadow-[color-mix(in_srgb,var(--theme-primary)_20%,transparent)]"
                             : readingMode === 'light' ? "bg-white border-white/10 text-gray-500 hover:text-[var(--theme-primary)]" :
@@ -1688,7 +1688,7 @@ export default function App() {
                       <button
                         onClick={handleToggleMap}
                         className={cn(
-                          "w-11 h-11 flex items-center justify-center rounded-2xl transition-all shadow-sm border",
+                          "w-11 h-11 flex items-center justify-center rounded-2xl transition-all shadow-sm border shrink-0 snap-center",
                           showMapOverlay
                             ? "bg-[var(--theme-primary)] text-white border-[var(--theme-primary-400)] shadow-[color-mix(in_srgb,var(--theme-primary)_20%,transparent)]"
                             : readingMode === 'light' ? "bg-white border-white/10 text-gray-500 hover:text-[var(--theme-primary)]" :
@@ -1704,7 +1704,7 @@ export default function App() {
                       <button
                         onClick={() => setIsScribeMode(true)}
                         className={cn(
-                          "w-11 h-11 flex items-center justify-center rounded-2xl transition-all shadow-sm border",
+                          "w-11 h-11 flex items-center justify-center rounded-2xl transition-all shadow-sm border shrink-0 snap-center",
                           readingMode === 'light' ? "bg-white border-white/10 text-gray-500 hover:text-[var(--theme-primary)]" :
                             readingMode === 'sepia' ? "bg-[#e8dfc8] border-[#dcd0b0] text-gray-300 hover:text-[var(--theme-primary)]" :
                               "bg-[#2a2a2a] border-white/10 text-gray-500 hover:text-[var(--theme-primary)]"
@@ -1721,7 +1721,7 @@ export default function App() {
                           setShowNavigator(true);
                         }}
                         className={cn(
-                          "flex items-center gap-1.5 px-4 h-11 rounded-2xl border font-bold text-sm transition-all",
+                          "flex items-center gap-1.5 px-4 h-11 rounded-2xl border font-bold text-sm transition-all shrink-0 snap-center",
                           "bg-[color-mix(in_srgb,var(--theme-primary-900)_30%,transparent)] border-[var(--theme-primary)]/20 text-[var(--theme-primary-400)] hover:bg-[color-mix(in_srgb,var(--theme-primary-900)_50%,transparent)]"
                         )}
                       >
@@ -2212,11 +2212,11 @@ export default function App() {
                                         </motion.div>
                                       )}
 
-                                      <div className="flex items-center gap-2 p-1 bg-white dark:bg-[#2a2a2a] rounded-2xl shadow-xl border border-white/10 dark:border-white/10">
+                                      <div className="flex items-center gap-2 p-1.5 bg-white dark:bg-[#2a2a2a] rounded-2xl shadow-xl border border-white/10 dark:border-white/10 overflow-x-auto no-scrollbar max-w-[calc(100vw-3rem)]">
                                         <button
                                           onClick={() => toggleBookmark(v)}
                                           className={cn(
-                                            "p-2.5 rounded-xl transition-all",
+                                            "p-2.5 rounded-xl transition-all shrink-0",
                                             isBookmarked ? "bg-[var(--theme-primary)] text-white" : "text-gray-400 hover:bg-white/15 dark:hover:bg-white/5 hover:text-[var(--theme-primary-400)]"
                                           )}
                                           title="Bookmark"
@@ -2226,7 +2226,7 @@ export default function App() {
                                         <button
                                           onClick={() => handleOpenNote(v)}
                                           className={cn(
-                                            "p-2.5 rounded-xl transition-all",
+                                            "p-2.5 rounded-xl transition-all shrink-0",
                                             hasNote ? "bg-[var(--theme-primary)] text-white" : "text-gray-400 hover:bg-white/15 dark:hover:bg-white/5 hover:text-[var(--theme-primary)]"
                                           )}
                                           title="Note"
@@ -2236,7 +2236,7 @@ export default function App() {
                                         <button
                                           onClick={() => setShowHighlighterMenu(!showHighlighterMenu)}
                                           className={cn(
-                                            "p-2.5 rounded-xl transition-all",
+                                            "p-2.5 rounded-xl transition-all shrink-0",
                                             highlightId ? "bg-yellow-400 text-white" : "text-gray-400 hover:bg-white/15 dark:hover:bg-white/5 hover:text-yellow-600"
                                           )}
                                           title="Highlight"
@@ -2245,29 +2245,29 @@ export default function App() {
                                         </button>
                                         <button
                                           onClick={() => handleDeepDive(v)}
-                                          className="p-2.5 rounded-xl transition-all text-gray-400 hover:bg-white/15 dark:hover:bg-white/5 hover:text-cyan-400"
+                                          className="p-2.5 rounded-xl transition-all text-gray-400 hover:bg-white/15 dark:hover:bg-white/5 hover:text-cyan-400 shrink-0"
                                           title="Deep Dive (Archeology)"
                                         >
                                           <Compass size={18} />
                                         </button>
                                         <button
                                           onClick={() => copyVerse(v)}
-                                          className="p-2.5 rounded-xl text-gray-500 hover:bg-white/15 dark:hover:bg-white/5 hover:text-[var(--theme-primary)] transition-all"
+                                          className="p-2.5 rounded-xl text-gray-500 hover:bg-white/15 dark:hover:bg-white/5 hover:text-[var(--theme-primary)] transition-all shrink-0"
                                           title="Copy"
                                         >
                                           {copiedVerseId === v.verse ? <Check size={18} className="text-[var(--theme-primary)]" /> : <Copy size={18} />}
                                         </button>
                                         <button
                                           onClick={() => shareVerse(v)}
-                                          className="p-2.5 rounded-xl text-gray-500 hover:bg-white/15 dark:hover:bg-white/5 hover:text-[var(--theme-primary)] transition-all"
+                                          className="p-2.5 rounded-xl text-gray-500 hover:bg-white/15 dark:hover:bg-white/5 hover:text-[var(--theme-primary)] transition-all shrink-0"
                                           title="Share"
                                         >
                                           <Share2 size={18} />
                                         </button>
-                                        <div className="w-px h-6 bg-gray-100 dark:bg-white/10 mx-1" />
+                                        <div className="w-px h-6 bg-gray-100 dark:bg-white/10 mx-1 shrink-0" />
                                         <button
                                           onClick={() => handleVisualize(v)}
-                                          className="flex items-center gap-2 px-4 py-2 bg-[var(--theme-primary)] text-white rounded-xl font-bold text-xs hover:bg-[var(--theme-primary)] transition-all"
+                                          className="flex items-center shrink-0 gap-2 px-4 py-2 bg-[var(--theme-primary)] text-white rounded-xl font-bold text-xs hover:bg-[var(--theme-primary)] transition-all"
                                         >
                                           <Eye size={16} />
                                           Visualize
@@ -2283,7 +2283,7 @@ export default function App() {
 
                         {/* Navigation */}
                         <div className={cn(
-                          "flex items-center justify-between pt-12 border-t mt-12",
+                          "flex items-center justify-between pt-12 border-t mt-12 mb-32 md:mb-8",
                           readingMode === 'dark' ? "border-white/10" : "border-white/10"
                         )}>
                           <button
