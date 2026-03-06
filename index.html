@@ -22,6 +22,24 @@
 <body>
   <div id="root"></div>
   <script type="module" src="/src/main.tsx"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function (registrations) {
+        for (let registration of registrations) {
+          registration.unregister();
+          console.log('Forcefully unregistered old ServiceWorker:', registration);
+        }
+      });
+    }
+    if ('caches' in window) {
+      caches.keys().then((keyList) => {
+        return Promise.all(keyList.map((key) => {
+          console.log('Forcefully deleting cache:', key);
+          return caches.delete(key);
+        }));
+      });
+    }
+  </script>
 </body>
 
 </html>
