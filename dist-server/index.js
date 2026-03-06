@@ -5,6 +5,7 @@ import { PORT, NODE_ENV } from './config.js';
 // Routes
 import authRoutes from './auth.js';
 import dataRoutes from './data.js';
+import geminiRoutes from './gemini.js';
 const app = express();
 // CORS: Must be placed before any routes and uses explicit headers
 // so that even 500 error responses carry the Access-Control-Allow-Origin header
@@ -143,6 +144,7 @@ pool.on('error', (err) => {
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/user', dataRoutes);
+app.use('/api/ai', geminiRoutes);
 // Diagnostic Route: Test DB Connection with deep info
 app.get('/api/test-db', async (req, res) => {
     const diagnostics = {
