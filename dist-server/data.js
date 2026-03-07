@@ -6,17 +6,26 @@ const router = Router();
 router.get('/data', authenticateToken, async (req, res) => {
     const userId = req.user?.id;
     try {
-        const [notes, bookmarks, progress, highlights] = await Promise.all([
+        const [notes, bookmarks, progress, highlights, gallery] = await Promise.all([
             pool.query('SELECT * FROM notes WHERE user_id = $1', [userId]),
             pool.query('SELECT * FROM bookmarks WHERE user_id = $1', [userId]),
             pool.query('SELECT * FROM reading_progress WHERE user_id = $1', [userId]),
-            pool.query('SELECT * FROM highlights WHERE user_id = $1', [userId])
+            pool.query('SELECT * FROM highlights WHERE user_id = $1', [userId]),
+            pool.query('SELECT * FROM gallery WHERE user_id = $1 ORDER BY created_at DESC', [userId])
         ]);
         res.json({
             notes: notes.rows,
             bookmarks: bookmarks.rows,
             progress: progress.rows[0] || null,
-            highlights: highlights.rows
+            highlights: highlights.rows,
+            gallery: gallery.rows.map(g => ({
+                id: g.local_id,
+                // Restore the data URI prefix that was stripped before storage
+                url: g.url.startsWith('data:') ? g.url : `data:image/png;base64,${g.url}`,
+                reference: g.reference,
+                text: g.text,
+                date: g.date
+            }))
         });
     }
     catch (err) {
@@ -59,12 +68,29 @@ router.post('/sync', authenticateToken, async (req, res) => {
                     last_read_at = CURRENT_TIMESTAMP`, [userId, progress.activePlanId, JSON.stringify(progress.completedChapters || {})]);
         }
         // 4. Sync Highlights (Upsert by verse_key)
-        const { highlights } = req.body;
+        const { highlights, gallery } = req.body;
         if (highlights && Array.isArray(highlights)) {
             for (const h of highlights) {
                 await client.query(`INSERT INTO highlights (user_id, verse_key, color)
                      VALUES ($1, $2, $3)
                      ON CONFLICT (user_id, verse_key) DO UPDATE SET color = EXCLUDED.color`, [userId, h.verse_key, h.color]);
+            }
+        }
+        // 5. Sync Gallery (Upsert by local_id)
+        if (gallery && Array.isArray(gallery)) {
+            for (const item of gallery) {
+                // Strip the redundant data URI prefix before storing; restore it on read.
+                // This keeps each row lean and avoids issues with very long text values.
+                const rawBase64 = item.url
+                    ? item.url.replace(/^data:image\/[a-z]+;base64,/, '')
+                    : item.url;
+                await client.query(`INSERT INTO gallery (user_id, local_id, url, reference, text, date)
+                     VALUES ($1, $2, $3, $4, $5, $6)
+                     ON CONFLICT (user_id, local_id) DO UPDATE SET 
+                        url = EXCLUDED.url, 
+                        reference = EXCLUDED.reference, 
+                        text = EXCLUDED.text, 
+                        date = EXCLUDED.date`, [userId, item.id, rawBase64, item.reference, item.text, item.date]);
             }
         }
         await client.query('COMMIT');
@@ -83,6 +109,30 @@ router.post('/sync', authenticateToken, async (req, res) => {
     finally {
         if (client)
             client.release();
+    }
+});
+// Upload a single gallery image (used by "Sync to Cloud" recovery button)
+// Each request is one image, keeping payload manageable with the 50mb body limit.
+router.post('/gallery/item', authenticateToken, async (req, res) => {
+    const userId = req.user?.id;
+    const { id, url, reference, text, date } = req.body;
+    if (!userId || !id || !url)
+        return res.status(400).json({ error: 'Missing required fields' });
+    try {
+        // Strip data URI prefix before storing (restore on read in GET /data)
+        const rawBase64 = url.replace(/^data:image\/[a-z]+;base64,/, '');
+        await pool.query(`INSERT INTO gallery (user_id, local_id, url, reference, text, date)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT (user_id, local_id) DO UPDATE SET
+                url = EXCLUDED.url,
+                reference = EXCLUDED.reference,
+                text = EXCLUDED.text,
+                date = EXCLUDED.date`, [userId, id, rawBase64, reference, text, date]);
+        res.json({ success: true });
+    }
+    catch (err) {
+        console.error('Gallery item upload error:', err);
+        res.status(500).json({ error: err.message });
     }
 });
 export default router;
