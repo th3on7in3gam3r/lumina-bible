@@ -23,6 +23,7 @@ import {
   User,
   Image as ImageIcon,
   Copy,
+  Cloud as CloudIcon,
   Layout,
   Star,
   Settings,
@@ -2886,6 +2887,19 @@ export default function App() {
                           </button>
                         )}
                       </div>
+                      
+                      {isAuthenticated && gallery.some(g => g.url && g.url.startsWith('data:image')) && (
+                        <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-4 flex gap-3 text-sm text-blue-100 items-start">
+                          <CloudIcon size={18} className="text-blue-400 shrink-0 mt-0.5" />
+                          <div className="space-y-1">
+                            <p className="font-semibold text-blue-200">Cloud Sync Available</p>
+                            <p className="text-blue-100/70 leading-relaxed text-xs">
+                              You have images stored only on this device. Click <strong>Sync to Cloud</strong> to back them up to your account so you can view them on your phone.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
                       {galleryUploadStatus && (
                         <p className="text-xs text-emerald-400 font-medium">{galleryUploadStatus}</p>
                       )}
