@@ -24,7 +24,8 @@ router.get('/data', authenticateToken, async (req: AuthRequest, res: Response) =
             highlights: highlights.rows,
             gallery: gallery.rows.map(g => ({
                 id: g.local_id,
-                url: g.url,
+                // Restore the data URI prefix that was stripped before storage
+                url: g.url.startsWith('data:') ? g.url : `data:image/png;base64,${g.url}`,
                 reference: g.reference,
                 text: g.text,
                 date: g.date
@@ -100,6 +101,11 @@ router.post('/sync', authenticateToken, async (req: AuthRequest, res: Response) 
         // 5. Sync Gallery (Upsert by local_id)
         if (gallery && Array.isArray(gallery)) {
             for (const item of gallery) {
+                // Strip the redundant data URI prefix before storing; restore it on read.
+                // This keeps each row lean and avoids issues with very long text values.
+                const rawBase64 = item.url
+                    ? item.url.replace(/^data:image\/[a-z]+;base64,/, '')
+                    : item.url;
                 await client.query(
                     `INSERT INTO gallery (user_id, local_id, url, reference, text, date)
                      VALUES ($1, $2, $3, $4, $5, $6)
@@ -108,7 +114,7 @@ router.post('/sync', authenticateToken, async (req: AuthRequest, res: Response) 
                         reference = EXCLUDED.reference, 
                         text = EXCLUDED.text, 
                         date = EXCLUDED.date`,
-                    [userId, item.id, item.url, item.reference, item.text, item.date]
+                    [userId, item.id, rawBase64, item.reference, item.text, item.date]
                 );
             }
         }
