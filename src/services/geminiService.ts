@@ -72,19 +72,19 @@ export interface WeeklyReflectionInput {
   weekStartDate: string;
 }
 
-export async function generateVerseImage(verseText: string, reference: string): Promise<string | null> {
+export async function generateVerseImage(verseText: string, reference: string): Promise<{ imageUrl: string | null; galleryItem: { id: string; reference: string; text: string; date: string } | null }> {
   try {
     const response = await fetch(`${API_URL}/ai/image`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({ verseText, reference })
     });
-    if (!response.ok) return null;
+    if (!response.ok) return { imageUrl: null, galleryItem: null };
     const data = await response.json();
-    return data.imageBase64;
+    return { imageUrl: data.imageBase64 || null, galleryItem: data.galleryItem || null };
   } catch (error) {
     console.error("Gemini image generation error:", error);
-    return null;
+    return { imageUrl: null, galleryItem: null };
   }
 }
 

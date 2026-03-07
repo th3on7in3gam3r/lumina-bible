@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { GoogleGenAI, Type } from "@google/genai";
-import { authenticateToken } from './middleware.js';
+import { authenticateToken, AuthRequest } from './middleware.js';
+import pool from './db.js';
 
 const router = Router();
 
@@ -16,8 +17,9 @@ try {
     console.error("Lumina Backend: Failed to initialize Gemini API:", e);
 }
 
-router.post('/image', authenticateToken, async (req: Request, res: Response): Promise<any> => {
+router.post('/image', authenticateToken, async (req: AuthRequest, res: Response): Promise<any> => {
     const { verseText, reference } = req.body;
+    const userId = req.user?.id;
     if (!ai) return res.status(503).json({ error: "AI not configured" });
 
     const prompt = `A breathtaking, high-quality, atmospheric, and spiritual cinematic digital art piece inspired by the Bible verse: "${verseText}" (${reference}). 
@@ -35,10 +37,31 @@ router.post('/image', authenticateToken, async (req: Request, res: Response): Pr
 
         for (const part of response.candidates?.[0]?.content?.parts || []) {
             if (part.inlineData) {
-                return res.json({ imageBase64: `data:image/png;base64,${part.inlineData.data}` });
+                const rawBase64 = part.inlineData.data;
+                const localId = `img_${Date.now()}`;
+                const date = new Date().toLocaleDateString();
+
+                // Save directly to DB at generation time — no large payload sync needed
+                if (userId) {
+                    try {
+                        await pool.query(
+                            `INSERT INTO gallery (user_id, local_id, url, reference, text, date)
+                             VALUES ($1, $2, $3, $4, $5, $6)
+                             ON CONFLICT (user_id, local_id) DO NOTHING`,
+                            [userId, localId, rawBase64, reference, verseText, date]
+                        );
+                    } catch (dbErr) {
+                        console.error('Gallery DB save error (non-fatal):', dbErr);
+                    }
+                }
+
+                return res.json({
+                    imageBase64: `data:image/png;base64,${rawBase64}`,
+                    galleryItem: { id: localId, reference, text: verseText, date }
+                });
             }
         }
-        res.json({ imageBase64: null });
+        res.json({ imageBase64: null, galleryItem: null });
     } catch (err: any) {
         console.error("Image gen error:", err);
         res.status(500).json({ error: err.message });

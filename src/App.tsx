@@ -388,13 +388,14 @@ export default function App() {
         verse_key, color
       }));
 
-      // Format gallery for DB
+      // Gallery: only sync tiny metadata — the image itself is saved server-side at generation time.
+      // Sending base64 URLs would cause a 413 Payload Too Large error.
       const dbGallery = gallery.map(item => ({
         id: item.id,
-        url: item.url,
         reference: item.reference,
         text: item.text,
         date: item.date
+        // Note: url is intentionally excluded — already stored in DB from /api/ai/image
       }));
 
       await dbService.syncData({
@@ -584,17 +585,19 @@ export default function App() {
     setIsGeneratingImage(true);
     setGeneratedImage(null);
     const reference = `${currentBook.name} ${currentChapter}:${verse.verse}`;
-    const imageUrl = await generateVerseImage(verse.text, reference);
+    const { imageUrl, galleryItem } = await generateVerseImage(verse.text, reference);
     setGeneratedImage(imageUrl);
     setIsGeneratingImage(false);
 
     if (imageUrl) {
+      // Use the server-assigned ID if available (image already saved to DB server-side),
+      // otherwise fall back to a local timestamp ID.
       const newItem = {
-        id: Date.now().toString(),
+        id: galleryItem?.id ?? Date.now().toString(),
         url: imageUrl,
-        reference,
-        text: verse.text,
-        date: new Date().toLocaleDateString()
+        reference: galleryItem?.reference ?? reference,
+        text: galleryItem?.text ?? verse.text,
+        date: galleryItem?.date ?? new Date().toLocaleDateString()
       };
       setGallery(prev => [newItem, ...prev]);
     }
