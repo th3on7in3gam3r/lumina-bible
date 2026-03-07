@@ -1,13 +1,11 @@
-const CACHE_NAME = 'lumina-bible-v8';
+const CACHE_NAME = 'lumina-bible-v9';
 const ASSETS = [
     '/',
     '/index.html',
     '/manifest.json',
     '/icon-192.png',
     '/icon-512.png',
-    '/favicon.png',
-    '/assets/index-Bj-GbkE2.js',
-    '/assets/index-NtkbJtD3.css'
+    '/favicon.png'
 ];
 
 self.addEventListener('install', (e) => {
@@ -34,10 +32,28 @@ self.addEventListener('fetch', (e) => {
         return;
     }
 
-    // Handle static assets with cache-first strategy
     e.respondWith(
         caches.match(e.request).then((cachedResponse) => {
-            return cachedResponse || fetch(e.request);
+            if (cachedResponse) {
+                return cachedResponse;
+            }
+
+            return fetch(e.request).then((response) => {
+                // Don't cache non-successful responses or browser extensions
+                if (!response || response.status !== 200 || response.type !== 'basic') {
+                    return response;
+                }
+
+                // Dynamically cache Vite assets (js/css) since their hashes change
+                if (e.request.url.includes('/assets/')) {
+                    const responseToCache = response.clone();
+                    caches.open(CACHE_NAME).then((cache) => {
+                        cache.put(e.request, responseToCache);
+                    });
+                }
+                
+                return response;
+            });
         })
     );
 });
