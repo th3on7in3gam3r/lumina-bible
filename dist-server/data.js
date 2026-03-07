@@ -76,23 +76,9 @@ router.post('/sync', authenticateToken, async (req, res) => {
                      ON CONFLICT (user_id, verse_key) DO UPDATE SET color = EXCLUDED.color`, [userId, h.verse_key, h.color]);
             }
         }
-        // 5. Sync Gallery (Upsert by local_id)
-        if (gallery && Array.isArray(gallery)) {
-            for (const item of gallery) {
-                // Strip the redundant data URI prefix before storing; restore it on read.
-                // This keeps each row lean and avoids issues with very long text values.
-                const rawBase64 = item.url
-                    ? item.url.replace(/^data:image\/[a-z]+;base64,/, '')
-                    : item.url;
-                await client.query(`INSERT INTO gallery (user_id, local_id, url, reference, text, date)
-                     VALUES ($1, $2, $3, $4, $5, $6)
-                     ON CONFLICT (user_id, local_id) DO UPDATE SET 
-                        url = EXCLUDED.url, 
-                        reference = EXCLUDED.reference, 
-                        text = EXCLUDED.text, 
-                        date = EXCLUDED.date`, [userId, item.id, rawBase64, item.reference, item.text, item.date]);
-            }
-        }
+        // Gallery sync is deliberately omitted here. Gallery items are saved either:
+        // 1. Instantly upon generation in /api/ai/image
+        // 2. Via the recovery "Sync to Cloud" button in /api/user/gallery/item
         await client.query('COMMIT');
         res.json({ success: true, timestamp: new Date().toISOString() });
     }
