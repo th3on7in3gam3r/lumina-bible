@@ -132,6 +132,20 @@ const runStartupMigration = async (retries = 5) => {
             END $$;
         `).catch(() => { }); // Ignore if already exists
 
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS gallery (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                local_id TEXT NOT NULL,
+                url TEXT NOT NULL,
+                reference TEXT NOT NULL,
+                text TEXT NOT NULL,
+                date TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (user_id, local_id)
+            );
+        `);
+
         console.log('✅ All tables ready.');
     } catch (err: any) {
         console.error(`⚠️ Startup migration attempt failed:`, err.message);

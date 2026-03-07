@@ -388,11 +388,21 @@ export default function App() {
         verse_key, color
       }));
 
+      // Format gallery for DB
+      const dbGallery = gallery.map(item => ({
+        id: item.id,
+        url: item.url,
+        reference: item.reference,
+        text: item.text,
+        date: item.date
+      }));
+
       await dbService.syncData({
         notes: dbNotes,
         bookmarks: dbBookmarks,
         progress: { activePlanId, completedChapters },
-        highlights: dbHighlights
+        highlights: dbHighlights,
+        gallery: dbGallery
       });
       console.log('☁️ Data synced to cloud');
     } catch (err) {
@@ -409,7 +419,7 @@ export default function App() {
       syncDataWithDB();
     }, 2000); // Wait 2s after last change
     return () => clearTimeout(timer);
-  }, [notes, bookmarks, completedChapters, activePlanId, isAuthenticated]);
+  }, [notes, bookmarks, completedChapters, activePlanId, highlights, gallery, isAuthenticated]);
 
   useEffect(() => {
     // Load progress from localStorage
@@ -790,6 +800,15 @@ export default function App() {
             serverHighlights[h.verse_key] = h.color;
           }
           setHighlights(prev => ({ ...serverHighlights, ...prev }));
+        }
+
+        // Load gallery from server
+        if (serverData.gallery?.length) {
+          setGallery(prev => {
+            const existingIds = new Set(prev.map(g => g.id));
+            const newItems = serverData.gallery.filter((g: any) => !existingIds.has(g.id));
+            return [...newItems, ...prev];
+          });
         }
       } catch (fetchErr) {
         console.warn('Could not load server data after login:', fetchErr);

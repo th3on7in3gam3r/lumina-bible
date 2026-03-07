@@ -9,18 +9,26 @@ router.get('/data', authenticateToken, async (req: AuthRequest, res: Response) =
     const userId = req.user?.id;
 
     try {
-        const [notes, bookmarks, progress, highlights] = await Promise.all([
+        const [notes, bookmarks, progress, highlights, gallery] = await Promise.all([
             pool.query('SELECT * FROM notes WHERE user_id = $1', [userId]),
             pool.query('SELECT * FROM bookmarks WHERE user_id = $1', [userId]),
             pool.query('SELECT * FROM reading_progress WHERE user_id = $1', [userId]),
-            pool.query('SELECT * FROM highlights WHERE user_id = $1', [userId])
+            pool.query('SELECT * FROM highlights WHERE user_id = $1', [userId]),
+            pool.query('SELECT * FROM gallery WHERE user_id = $1 ORDER BY created_at DESC', [userId])
         ]);
 
         res.json({
             notes: notes.rows,
             bookmarks: bookmarks.rows,
             progress: progress.rows[0] || null,
-            highlights: highlights.rows
+            highlights: highlights.rows,
+            gallery: gallery.rows.map(g => ({
+                id: g.local_id,
+                url: g.url,
+                reference: g.reference,
+                text: g.text,
+                date: g.date
+            }))
         });
     } catch (err) {
         console.error('Fetch data error:', err);
@@ -77,7 +85,7 @@ router.post('/sync', authenticateToken, async (req: AuthRequest, res: Response) 
         }
 
         // 4. Sync Highlights (Upsert by verse_key)
-        const { highlights } = req.body;
+        const { highlights, gallery } = req.body;
         if (highlights && Array.isArray(highlights)) {
             for (const h of highlights) {
                 await client.query(
@@ -85,6 +93,22 @@ router.post('/sync', authenticateToken, async (req: AuthRequest, res: Response) 
                      VALUES ($1, $2, $3)
                      ON CONFLICT (user_id, verse_key) DO UPDATE SET color = EXCLUDED.color`,
                     [userId, h.verse_key, h.color]
+                );
+            }
+        }
+
+        // 5. Sync Gallery (Upsert by local_id)
+        if (gallery && Array.isArray(gallery)) {
+            for (const item of gallery) {
+                await client.query(
+                    `INSERT INTO gallery (user_id, local_id, url, reference, text, date)
+                     VALUES ($1, $2, $3, $4, $5, $6)
+                     ON CONFLICT (user_id, local_id) DO UPDATE SET 
+                        url = EXCLUDED.url, 
+                        reference = EXCLUDED.reference, 
+                        text = EXCLUDED.text, 
+                        date = EXCLUDED.date`,
+                    [userId, item.id, item.url, item.reference, item.text, item.date]
                 );
             }
         }

@@ -63,6 +63,7 @@ export const dbService = {
         bookmarks?: any[];
         progress?: { activePlanId: string | null; completedChapters: Record<string, boolean> };
         highlights?: any[];
+        gallery?: any[];
     }) {
         const response = await fetch(`${API_URL}/user/sync`, {
             method: 'POST',
