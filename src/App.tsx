@@ -2265,7 +2265,7 @@ export default function App() {
                                         </motion.div>
                                       )}
 
-                                      <div className="flex items-center gap-2 p-1.5 bg-white dark:bg-[#2a2a2a] rounded-2xl shadow-xl border border-white/10 dark:border-white/10 overflow-x-auto no-scrollbar max-w-[calc(100vw-3rem)]">
+                                      <div className="flex flex-wrap items-center justify-center gap-1.5 md:gap-2 p-1.5 bg-white dark:bg-[#2a2a2a] rounded-2xl shadow-xl border border-white/10 dark:border-white/10 max-w-[calc(100vw-2rem)] mx-auto">
                                         <button
                                           onClick={() => toggleBookmark(v)}
                                           className={cn(
