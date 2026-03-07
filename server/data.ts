@@ -134,4 +134,31 @@ router.post('/sync', authenticateToken, async (req: AuthRequest, res: Response) 
     }
 });
 
+// Upload a single gallery image (used by "Sync to Cloud" recovery button)
+// Each request is one image, keeping payload manageable with the 50mb body limit.
+router.post('/gallery/item', authenticateToken, async (req: AuthRequest, res: Response) => {
+    const userId = req.user?.id;
+    const { id, url, reference, text, date } = req.body;
+    if (!userId || !id || !url) return res.status(400).json({ error: 'Missing required fields' });
+
+    try {
+        // Strip data URI prefix before storing (restore on read in GET /data)
+        const rawBase64 = url.replace(/^data:image\/[a-z]+;base64,/, '');
+        await pool.query(
+            `INSERT INTO gallery (user_id, local_id, url, reference, text, date)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT (user_id, local_id) DO UPDATE SET
+                url = EXCLUDED.url,
+                reference = EXCLUDED.reference,
+                text = EXCLUDED.text,
+                date = EXCLUDED.date`,
+            [userId, id, rawBase64, reference, text, date]
+        );
+        res.json({ success: true });
+    } catch (err: any) {
+        console.error('Gallery item upload error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 export default router;

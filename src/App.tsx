@@ -243,6 +243,8 @@ export default function App() {
       return (saved && saved !== 'null') ? JSON.parse(saved) : [];
     } catch { return []; }
   });
+  const [isUploadingGallery, setIsUploadingGallery] = useState(false);
+  const [galleryUploadStatus, setGalleryUploadStatus] = useState<string | null>(null);
 
   // Derived States
   const firstName = useMemo(() => name ? name.split(' ')[0] : 'Jerless', [name]);
@@ -411,6 +413,33 @@ export default function App() {
     } finally {
       setIsSyncing(false);
     }
+  };
+
+  // One-time recovery: push all localStorage gallery images to Neon DB.
+  // Run this from desktop after a Render redeploy to make old images available cross-device.
+  const pushLocalGalleryToCloud = async () => {
+    if (!isAuthenticated || isUploadingGallery) return;
+    const itemsWithUrl = gallery.filter(item => item.url && item.url.startsWith('data:'));
+    if (itemsWithUrl.length === 0) {
+      setGalleryUploadStatus('✅ All images already synced!');
+      setTimeout(() => setGalleryUploadStatus(null), 3000);
+      return;
+    }
+    setIsUploadingGallery(true);
+    setGalleryUploadStatus(`Uploading 0 / ${itemsWithUrl.length}...`);
+    let successCount = 0;
+    for (let i = 0; i < itemsWithUrl.length; i++) {
+      try {
+        await dbService.uploadGalleryItem(itemsWithUrl[i]);
+        successCount++;
+        setGalleryUploadStatus(`Uploading ${i + 1} / ${itemsWithUrl.length}...`);
+      } catch (err) {
+        console.error('Failed to upload gallery item:', err);
+      }
+    }
+    setIsUploadingGallery(false);
+    setGalleryUploadStatus(`✅ Synced ${successCount} / ${itemsWithUrl.length} images to cloud!`);
+    setTimeout(() => setGalleryUploadStatus(null), 5000);
   };
 
   // Debounced Sync Effect
@@ -2841,8 +2870,25 @@ export default function App() {
                     className="space-y-8 pb-32"
                   >
                     <div className="flex flex-col gap-2">
-                      <h1 className="text-4xl font-black tracking-tight text-white">Meditation Gallery</h1>
-                      <p className="text-gray-400 font-medium tracking-wide uppercase text-[10px]">Your personal collection of scripture-inspired art</p>
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <h1 className="text-4xl font-black tracking-tight text-white">Meditation Gallery</h1>
+                          <p className="text-gray-400 font-medium tracking-wide uppercase text-[10px]">Your personal collection of scripture-inspired art</p>
+                        </div>
+                        {isAuthenticated && gallery.length > 0 && (
+                          <button
+                            onClick={pushLocalGalleryToCloud}
+                            disabled={isUploadingGallery}
+                            className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white rounded-xl text-xs font-semibold transition-all"
+                          >
+                            {isUploadingGallery ? <Loader2 size={13} className="animate-spin" /> : <Share2 size={13} />}
+                            {isUploadingGallery ? 'Syncing...' : 'Sync to Cloud'}
+                          </button>
+                        )}
+                      </div>
+                      {galleryUploadStatus && (
+                        <p className="text-xs text-emerald-400 font-medium">{galleryUploadStatus}</p>
+                      )}
                     </div>
 
                     {gallery.length === 0 ? (

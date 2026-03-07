@@ -72,5 +72,17 @@ export const dbService = {
         });
         if (!response.ok) throw new Error('Sync failed');
         return response.json();
+    },
+
+    // Upload a single gallery item (full base64 url) to the Neon DB.
+    // Used by the "Sync to Cloud" recovery button to push old localStorage images.
+    async uploadGalleryItem(item: { id: string; url: string; reference: string; text: string; date: string }) {
+        const response = await fetch(`${API_URL}/user/gallery/item`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(item)
+        });
+        if (!response.ok) throw new Error('Gallery item upload failed');
+        return response.json();
     }
 };
