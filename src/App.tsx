@@ -5018,7 +5018,10 @@ export default function App() {
                       {isDeepDiveLoading ? (
                         <div className="flex flex-col items-center justify-center py-20 animate-pulse">
                           <Sparkles size={48} className="text-cyan-400 mb-6" />
-                          <p className="text-xl font-serif italic text-gray-400">Consulting the ancient scrolls...</p>
+                          <p className={cn(
+                            "text-xl font-serif italic",
+                            readingMode === 'dark' ? "text-gray-400" : "text-gray-500"
+                          )}>Consulting the ancient scrolls...</p>
                         </div>
                       ) : deepDiveData ? (
                         <>
@@ -5035,18 +5038,35 @@ export default function App() {
                                   animate={{ opacity: 1, x: 0 }}
                                   transition={{ delay: idx * 0.1 }}
                                   key={idx}
-                                  className="p-5 rounded-2xl bg-white/5 border border-white/5 hover:border-cyan-400/30 transition-all group"
+                                  className={cn(
+                                    "p-5 rounded-2xl border transition-all group",
+                                    readingMode === 'dark' 
+                                      ? "bg-white/5 border-white/5 hover:border-cyan-400/30" 
+                                      : "bg-gray-50 border-black/5 hover:border-cyan-500/30"
+                                  )}
                                 >
                                   <div className="flex items-end justify-between mb-3">
-                                    <span className="text-3xl font-serif text-white group-hover:text-cyan-400 transition-colors leading-none">
+                                    <span className={cn(
+                                      "text-3xl font-serif transition-colors leading-none",
+                                      readingMode === 'dark' ? "text-white group-hover:text-cyan-400" : "text-gray-900 group-hover:text-cyan-600"
+                                    )}>
                                       {word.original}
                                     </span>
-                                    <span className="text-xs font-mono text-cyan-400/60 uppercase tracking-widest">
+                                    <span className={cn(
+                                      "text-xs font-mono uppercase tracking-widest",
+                                      readingMode === 'dark' ? "text-cyan-400/60" : "text-cyan-600/60"
+                                    )}>
                                       {word.pronunciation}
                                     </span>
                                   </div>
-                                  <h4 className="font-black text-sm text-white/90 mb-1">{word.transliteration} — {word.meaning}</h4>
-                                  <p className="text-xs leading-relaxed text-gray-400 italic">"{word.nuance}"</p>
+                                  <h4 className={cn(
+                                    "font-black text-sm mb-1",
+                                    readingMode === 'dark' ? "text-white/90" : "text-gray-800"
+                                  )}>{word.transliteration} — {word.meaning}</h4>
+                                  <p className={cn(
+                                    "text-xs leading-relaxed italic",
+                                    readingMode === 'dark' ? "text-gray-400" : "text-gray-600"
+                                  )}>"{word.nuance}"</p>
                                 </motion.div>
                               ))}
                             </div>
@@ -5058,8 +5078,11 @@ export default function App() {
                               Historical Context
                               <div className="h-px flex-1 bg-orange-400/20" />
                             </h3>
-                            <div className="p-8 rounded-[32px] bg-orange-400/5 border border-orange-400/10 italic text-xl font-serif leading-relaxed text-gray-300 relative overflow-hidden">
-                              <div className="absolute top-0 right-0 p-4 opacity-10">
+                            <div className={cn(
+                              "p-8 rounded-[32px] border italic text-xl font-serif leading-relaxed relative overflow-hidden",
+                              readingMode === 'dark' ? "bg-orange-400/5 border-orange-400/10 text-gray-300" : "bg-orange-50 border-orange-500/10 text-gray-700"
+                            )}>
+                              <div className="absolute top-0 right-0 p-4 opacity-10 text-orange-500">
                                 <Search size={120} />
                               </div>
                               <span className="relative z-10">"{deepDiveData.historicalContext}"</span>
@@ -5083,15 +5106,29 @@ export default function App() {
                                     navigateToVerse(conn.reference);
                                     setShowDeepDive(false);
                                   }}
-                                  className="flex flex-col md:flex-row md:items-center gap-4 p-5 rounded-2xl bg-white/5 border border-white/5 hover:bg-[color-mix(in_srgb,var(--theme-primary)_5%,transparent)] hover:border-emerald-400/30 transition-all cursor-pointer group"
+                                  className={cn(
+                                    "flex flex-col md:flex-row md:items-center gap-4 p-5 rounded-2xl border transition-all cursor-pointer group",
+                                    readingMode === 'dark' 
+                                      ? "bg-white/5 border-white/5 hover:bg-[color-mix(in_srgb,var(--theme-primary)_5%,transparent)] hover:border-emerald-400/30" 
+                                      : "bg-gray-50 border-black/5 hover:bg-emerald-50 hover:border-emerald-500/30"
+                                  )}
                                 >
-                                  <div className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 font-black text-xs whitespace-nowrap group-hover:scale-105 transition-transform">
+                                  <div className={cn(
+                                    "px-3 py-1.5 rounded-lg font-black text-xs whitespace-nowrap group-hover:scale-105 transition-transform",
+                                    readingMode === 'dark' ? "bg-emerald-500/20 text-emerald-400" : "bg-emerald-100 text-emerald-700"
+                                  )}>
                                     {conn.reference}
                                   </div>
-                                  <p className="text-sm text-gray-400 leading-relaxed italic">
+                                  <p className={cn(
+                                    "text-sm leading-relaxed italic",
+                                    readingMode === 'dark' ? "text-gray-400" : "text-gray-600"
+                                  )}>
                                     {conn.description}
                                   </p>
-                                  <ArrowRight size={16} className="ml-auto text-gray-600 group-hover:text-emerald-400 transition-colors" />
+                                  <ArrowRight size={16} className={cn(
+                                    "ml-auto transition-colors",
+                                    readingMode === 'dark' ? "text-gray-600 group-hover:text-emerald-400" : "text-gray-400 group-hover:text-emerald-600"
+                                  )} />
                                 </motion.div>
                               ))}
                             </div>
