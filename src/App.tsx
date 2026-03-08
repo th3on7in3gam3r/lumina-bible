@@ -73,6 +73,7 @@ import { sermonService } from './services/sermonService';
 import { atmosphereService, type AtmosphereType } from './services/atmosphereService';
 import { InkCanvas } from './components/InkCanvas';
 import { dbService, type User as DBUser } from './services/dbService';
+import { getGalleryFromIndexedDB, saveGalleryToIndexedDB, type GalleryImage } from './services/localDbService';
 
 // Utility for tailwind classes
 function cn(...inputs: ClassValue[]) {
@@ -246,12 +247,27 @@ export default function App() {
   const [visualizingVerse, setVisualizingVerse] = useState<Verse | null>(null);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
-  const [gallery, setGallery] = useState<{ id: string, url: string, reference: string, text: string, date: string }[]>(() => {
-    try {
-      const saved = localStorage.getItem('lumina_gallery');
-      return (saved && saved !== 'null') ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
+  const [gallery, setGallery] = useState<GalleryImage[]>([]);
+
+  // Hydrate gallery from IndexedDB on mount
+  useEffect(() => {
+    getGalleryFromIndexedDB().then(saved => {
+      if (saved && saved.length > 0) {
+        setGallery(saved);
+      } else {
+        // Fallback migration from old localStorage string
+        try {
+          const oldSaved = localStorage.getItem('lumina_gallery');
+          if (oldSaved && oldSaved !== 'null') {
+            const parsed = JSON.parse(oldSaved);
+            setGallery(parsed);
+            saveGalleryToIndexedDB(parsed); // migrate it
+            localStorage.removeItem('lumina_gallery'); // clear quotas
+          }
+        } catch { }
+      }
+    });
+  }, []);
   const [isUploadingGallery, setIsUploadingGallery] = useState(false);
   const [galleryUploadStatus, setGalleryUploadStatus] = useState<string | null>(null);
 
@@ -363,16 +379,7 @@ export default function App() {
 
   // Effects
   useEffect(() => {
-    try {
-      localStorage.setItem('lumina_gallery', JSON.stringify(gallery));
-    } catch (error) {
-      console.warn('Gallery exceeds localStorage quota. Attempting to keep only the 3 most recent offline.');
-      try {
-        localStorage.setItem('lumina_gallery', JSON.stringify(gallery.slice(0, 3)));
-      } catch (err) {
-        console.error('Failed to save to localStorage entirely. Images will still sync to cloud.', err);
-      }
-    }
+    saveGalleryToIndexedDB(gallery);
   }, [gallery]);
 
   useEffect(() => {
