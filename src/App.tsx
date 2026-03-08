@@ -363,7 +363,16 @@ export default function App() {
 
   // Effects
   useEffect(() => {
-    localStorage.setItem('lumina_gallery', JSON.stringify(gallery));
+    try {
+      localStorage.setItem('lumina_gallery', JSON.stringify(gallery));
+    } catch (error) {
+      console.warn('Gallery exceeds localStorage quota. Attempting to keep only the 3 most recent offline.');
+      try {
+        localStorage.setItem('lumina_gallery', JSON.stringify(gallery.slice(0, 3)));
+      } catch (err) {
+        console.error('Failed to save to localStorage entirely. Images will still sync to cloud.', err);
+      }
+    }
   }, [gallery]);
 
   useEffect(() => {
