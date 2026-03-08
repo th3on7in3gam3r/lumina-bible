@@ -63,6 +63,31 @@ export interface WeeklyReflection {
   prayerPrompt: string;
 }
 
+export interface SermonSummary {
+  coreTheme: string;
+  keyTakeaways: string[];
+}
+
+export interface SermonDevotionalDay {
+  day: string;
+  theme: string;
+  scripture: string;
+  reflection: string;
+  prayer: string;
+}
+
+export interface SermonSocialMedia {
+  quotes: string[];
+  caption: string;
+}
+
+export interface SermonContentPack {
+  summary: SermonSummary;
+  devotional: SermonDevotionalDay[];
+  socialMedia: SermonSocialMedia;
+  actionSteps: string[];
+}
+
 export interface WeeklyReflectionInput {
   highlights: Array<{ reference: string; text: string; note?: string }>;
   notes: Array<{ reference: string; content: string }>;
@@ -186,6 +211,21 @@ export async function getWeeklyReflection(input: WeeklyReflectionInput): Promise
     return await response.json();
   } catch (error) {
     console.error("Gemini weekly reflection error:", error);
+    return null;
+  }
+}
+
+export async function generateSermonContentPack(transcript: string): Promise<SermonContentPack | null> {
+  try {
+    const response = await fetch(`${API_URL}/ai/sermon-content`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ transcript })
+    });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (error) {
+    console.error("Gemini sermon content generator error:", error);
     return null;
   }
 }

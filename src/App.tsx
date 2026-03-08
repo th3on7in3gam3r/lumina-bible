@@ -65,7 +65,7 @@ import {
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { BIBLE_BOOKS, READING_PLANS, DAILY_VERSES, type BibleBook, type ReadingPlan } from './constants';
-import { searchBible, generateVerseImage, askAuthor, extractScriptureReference, getVerseDeepDive, getWeeklyReflection, type SearchResult, type AISearchResponse, type ScriptureRef, type VerseDeepDive, type WeeklyReflection, type WeeklyReflectionInput } from './services/geminiService';
+import { searchBible, generateVerseImage, askAuthor, extractScriptureReference, getVerseDeepDive, getWeeklyReflection, generateSermonContentPack, type SearchResult, type AISearchResponse, type ScriptureRef, type VerseDeepDive, type WeeklyReflection, type WeeklyReflectionInput, type SermonContentPack } from './services/geminiService';
 import { fetchChapterVerses, TRANSLATION_MAP } from './services/bibleService';
 import { audioService, type AudioChunk, type GoogleVoice } from './services/audioService';
 import { getSacredGeography, type SacredLocation } from './services/geminiService';
@@ -170,7 +170,15 @@ export default function App() {
   const [sermonBridgeToast, setSermonBridgeToast] = useState<string | null>(null);
   const [showSermonNotesPanel, setShowSermonNotesPanel] = useState(false);
   const sermonTranscriptRef = useRef('');
+  const fullSermonTranscriptRef = useRef('');
   const sermonTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [sermonContent, setSermonContent] = useState<SermonContentPack | null>(() => {
+    try {
+      const saved = localStorage.getItem('lumina_sermon_content');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
+  const [isGeneratingSermonPack, setIsGeneratingSermonPack] = useState(false);
 
   // Verse Archeology State
   const [showDeepDive, setShowDeepDive] = useState(false);
@@ -357,6 +365,12 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('lumina_gallery', JSON.stringify(gallery));
   }, [gallery]);
+
+  useEffect(() => {
+    if (sermonContent) {
+      localStorage.setItem('lumina_sermon_content', JSON.stringify(sermonContent));
+    }
+  }, [sermonContent]);
 
   useEffect(() => {
     // Setup listeners for cloud audio buffering
@@ -927,12 +941,14 @@ export default function App() {
     }
 
     sermonTranscriptRef.current = '';
+    fullSermonTranscriptRef.current = '';
     setSermonTranscript('');
 
     sermonService.onTranscript = (text, isFinal) => {
       // Keep a rolling buffer of late transcript
       if (isFinal) {
         sermonTranscriptRef.current += ' ' + text;
+        fullSermonTranscriptRef.current += ' ' + text;
         // Keep only last ~300 chars to save tokens
         if (sermonTranscriptRef.current.length > 300) {
           sermonTranscriptRef.current = sermonTranscriptRef.current.slice(-300);
@@ -971,7 +987,7 @@ export default function App() {
             setTimeout(() => setShowSermonToast(false), 10000); // Wait 10 seconds before auto-dismiss
           }
 
-          // Clear buffer after a successful detection
+          // Clear buffer after a successful detection (only the rolling buffer)
           sermonTranscriptRef.current = '';
         }
       }, 2000); // 2 second pause before processing
@@ -985,6 +1001,28 @@ export default function App() {
 
     sermonService.start();
     setIsSermonListening(true);
+  };
+
+  const handleGenerateSermonInsights = async () => {
+    if (!fullSermonTranscriptRef.current || fullSermonTranscriptRef.current.length < 50) {
+      alert("Not enough sermon audio recorded to generate insights.");
+      return;
+    }
+    
+    setIsGeneratingSermonPack(true);
+    // Optionally stop listening if they generate it
+    if (isSermonListening) {
+      sermonService.stop();
+      setIsSermonListening(false);
+    }
+    
+    const pack = await generateSermonContentPack(fullSermonTranscriptRef.current);
+    if (pack) {
+      setSermonContent(pack);
+    } else {
+      alert("Failed to generate sermon insights.");
+    }
+    setIsGeneratingSermonPack(false);
   };
 
   const handleSermonJump = (ref: ScriptureRef) => {
@@ -2349,6 +2387,22 @@ export default function App() {
                             <ChevronLeft size={20} />
                             <span>Prev Chapter</span>
                           </button>
+                          
+                          <button
+                            onClick={() => toggleProgress(currentBook.name, currentChapter)}
+                            className={cn(
+                              "flex flex-col md:flex-row items-center gap-1.5 md:gap-2 px-4 py-2 md:px-6 md:py-3 rounded-2xl font-bold text-xs md:text-sm tracking-widest uppercase transition-all shadow-md hover:shadow-lg hover:-translate-y-1 active:translate-y-0 disabled:opacity-50",
+                              completedChapters[`${currentBook.name}-${currentChapter}`]
+                                ? "bg-[var(--theme-primary)] text-white shadow-[var(--theme-primary)]/20"
+                                : readingMode === 'dark'
+                                  ? "bg-white/10 text-white hover:bg-white/20"
+                                  : "bg-[color-mix(in_srgb,var(--theme-primary)_10%,white)] text-[var(--theme-primary)] hover:bg-[color-mix(in_srgb,var(--theme-primary)_15%,white)]"
+                            )}
+                          >
+                            <CheckCircle2 size={16} className={cn("transition-transform md:w-[18px] md:h-[18px]", completedChapters[`${currentBook.name}-${currentChapter}`] && "text-white scale-110")} />
+                            <span className="text-[10px] md:text-sm text-center leading-tight">{completedChapters[`${currentBook.name}-${currentChapter}`] ? 'Completed' : 'Mark\nComplete'}</span>
+                          </button>
+
                           <button
                             onClick={nextChapter}
                             className={cn(
@@ -4791,55 +4845,152 @@ export default function App() {
                       </button>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-6">
-                      {sermonNotes.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-full text-center space-y-4 opacity-50">
-                          <Mic size={48} className="text-[var(--theme-primary)] mb-2" />
-                          <p className={cn("font-bold", readingMode === 'dark' ? "text-white" : "text-black")}>No verses detected yet</p>
-                          <p className="text-sm px-4 text-gray-500">Turn on Live Sermon Mode and Lumina will automatically list any scriptures mentioned here.</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-4">
-                          {sermonNotes.map((note, idx) => (
-                            <div
-                              key={idx}
-                              onClick={() => {
-                                handleSermonJump(note);
-                                setShowSermonNotesPanel(false);
-                              }}
-                              className={cn(
-                                "p-4 rounded-2xl cursor-pointer transition-all border group",
-                                readingMode === 'dark' ? "bg-white/5 border-white/10 hover:border-[var(--theme-primary)]" : "bg-black/5 border-black/5 hover:border-[var(--theme-primary)]"
-                              )}
-                            >
-                              <div className="flex items-center justify-between mb-1">
-                                <h3 className={cn("font-bold text-lg", readingMode === 'dark' ? "text-white" : "text-black")}>
-                                  {note.book} {note.chapter}{note.verse ? `:${note.verse}` : ''}
-                                </h3>
-                                <ArrowRight size={16} className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity group-hover:text-[var(--theme-primary)]" />
+                    <div className="flex-1 overflow-y-auto p-6 space-y-8">
+                      {/* 1. Captured Verses */}
+                      <div>
+                        {sermonNotes.length === 0 ? (
+                          <div className="flex flex-col items-center justify-center py-8 text-center space-y-4 opacity-50">
+                            <Mic size={48} className="text-[var(--theme-primary)] mb-2" />
+                            <p className={cn("font-bold", readingMode === 'dark' ? "text-white" : "text-black")}>No verses detected yet</p>
+                            <p className="text-sm px-4 text-gray-500">Turn on Live Sermon Mode and Lumina will automatically list any scriptures mentioned here.</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            {sermonNotes.map((note, idx) => (
+                              <div
+                                key={idx}
+                                onClick={() => {
+                                  handleSermonJump(note);
+                                  setShowSermonNotesPanel(false);
+                                }}
+                                className={cn(
+                                  "p-4 rounded-2xl cursor-pointer transition-all border group",
+                                  readingMode === 'dark' ? "bg-white/5 border-white/10 hover:border-[var(--theme-primary)]" : "bg-black/5 border-black/5 hover:border-[var(--theme-primary)]"
+                                )}
+                              >
+                                <div className="flex items-center justify-between mb-1">
+                                  <h3 className={cn("font-bold text-lg", readingMode === 'dark' ? "text-white" : "text-black")}>
+                                    {note.book} {note.chapter}{note.verse ? `:${note.verse}` : ''}
+                                  </h3>
+                                  <ArrowRight size={16} className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity group-hover:text-[var(--theme-primary)]" />
+                                </div>
+                                {note.translation && (
+                                  <span className="inline-block px-2 py-0.5 rounded text-[10px] uppercase tracking-widest font-bold bg-[var(--theme-primary)]/20 text-[var(--theme-primary)] mt-2">
+                                    {note.translation}
+                                  </span>
+                                )}
                               </div>
-                              {note.translation && (
-                                <span className="inline-block px-2 py-0.5 rounded text-[10px] uppercase tracking-widest font-bold bg-[var(--theme-primary)]/20 text-[var(--theme-primary)] mt-2">
-                                  {note.translation}
-                                </span>
-                              )}
-                            </div>
-                          ))}
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 2. Sermon Content Engine */}
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2 border-b border-white/10 pb-2">
+                          <Sparkles size={16} className="text-[var(--theme-primary)]" />
+                          <h3 className="font-bold text-sm tracking-widest uppercase text-gray-400">Content Engine</h3>
                         </div>
-                      )}
+
+                        {isGeneratingSermonPack ? (
+                          <div className="flex flex-col items-center justify-center py-12 gap-4 border border-white/10 rounded-3xl bg-white/5">
+                            <div className="w-8 h-8 border-4 border-[var(--theme-primary)] border-t-transparent rounded-full animate-spin" />
+                            <p className="text-sm font-bold text-[var(--theme-primary)]">Distilling Message...</p>
+                          </div>
+                        ) : sermonContent ? (
+                           <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500">
+                             {/* Summary Card */}
+                             <div className="bg-[var(--theme-primary)]/10 border border-[var(--theme-primary)]/20 rounded-2xl p-4">
+                               <h4 className="font-bold text-[var(--theme-primary)] mb-2">Core Theme</h4>
+                               <p className={cn("text-sm font-medium mb-4", readingMode === 'dark' ? 'text-white' : 'text-black')}>{sermonContent.summary.coreTheme}</p>
+                               <ul className="text-xs space-y-2 text-gray-400">
+                                 {sermonContent.summary.keyTakeaways.map((point, i) => (
+                                   <li key={i} className="flex gap-2 items-start"><span className="text-[var(--theme-primary)] mt-0.5">•</span> <span>{point}</span></li>
+                                 ))}
+                               </ul>
+                             </div>
+                             
+                             {/* Devotional Toggle */}
+                             <details className={cn("border rounded-2xl overflow-hidden group", readingMode === 'dark' ? "bg-white/5 border-white/10" : "bg-black/5 border-black/10")}>
+                               <summary className="font-bold p-4 flex items-center justify-between cursor-pointer list-none select-none">
+                                 <div className="flex items-center gap-2 text-sm">
+                                   <BookOpen size={16} className="text-[var(--theme-primary)]"/> 7-Day Devotional
+                                 </div>
+                                 <ChevronRight size={16} className="transition-transform group-open:rotate-90 text-gray-400"/>
+                               </summary>
+                               <div className={cn("p-4 pt-0 space-y-6 border-t", readingMode === 'dark' ? "border-white/5" : "border-black/5")}>
+                                 {sermonContent.devotional.map((day, i) => (
+                                   <div key={i} className={cn("space-y-2 pb-4 border-b last:border-0 last:pb-0", readingMode === 'dark' ? "border-white/5" : "border-black/5")}>
+                                     <h5 className="text-sm font-bold text-[var(--theme-primary)]">{day.day}: {day.theme}</h5>
+                                     <p className={cn("text-xs font-bold", readingMode === 'dark' ? 'text-gray-300' : 'text-gray-700')}>{day.scripture}</p>
+                                     <p className="text-xs text-gray-400 leading-relaxed">{day.reflection}</p>
+                                     <div className="bg-[var(--theme-primary)]/5 p-3 rounded-xl mt-2">
+                                       <p className="text-xs italic text-[var(--theme-primary-400)] leading-relaxed"><span className="font-bold not-italic">Prayer:</span> {day.prayer}</p>
+                                     </div>
+                                   </div>
+                                 ))}
+                               </div>
+                             </details>
+                     
+                             {/* Social Media */}
+                             <details className={cn("border rounded-2xl overflow-hidden group", readingMode === 'dark' ? "bg-white/5 border-white/10" : "bg-black/5 border-black/10")}>
+                               <summary className="font-bold p-4 flex items-center justify-between cursor-pointer list-none select-none">
+                                 <div className="flex items-center gap-2 text-sm">
+                                   <Share2 size={16} className="text-[var(--theme-primary)]"/> Social Media Pack
+                                 </div>
+                                 <ChevronRight size={16} className="transition-transform group-open:rotate-90 text-gray-400"/>
+                               </summary>
+                               <div className={cn("p-4 pt-0 space-y-4 border-t", readingMode === 'dark' ? "border-white/5" : "border-black/5")}>
+                                 <div className="space-y-2">
+                                   <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Shareable Quotes</span>
+                                   {sermonContent.socialMedia.quotes.map((quote, i) => (
+                                     <div key={i} className={cn("flex flex-col gap-2 p-3 rounded-xl", readingMode === 'dark' ? "bg-black/20" : "bg-white")}>
+                                       <p className={cn("text-xs italic flex-1", readingMode === 'dark' ? 'text-gray-300' : 'text-gray-700')}>"{quote}"</p>
+                                       <button onClick={() => navigator.clipboard.writeText(quote)} className="self-end flex items-center gap-1 text-[10px] text-gray-400 hover:text-[var(--theme-primary)] font-bold uppercase tracking-widest"><Copy size={12}/> Copy</button>
+                                     </div>
+                                   ))}
+                                 </div>
+                                 <div className="space-y-2 pt-2">
+                                   <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Post Caption</span>
+                                   <div className={cn("flex flex-col gap-2 p-3 rounded-xl", readingMode === 'dark' ? "bg-black/20" : "bg-white")}>
+                                      <p className={cn("text-xs flex-1", readingMode === 'dark' ? 'text-gray-300' : 'text-gray-700')}>{sermonContent.socialMedia.caption}</p>
+                                      <button onClick={() => navigator.clipboard.writeText(sermonContent.socialMedia.caption)} className="self-end flex items-center gap-1 text-[10px] text-gray-400 hover:text-[var(--theme-primary)] font-bold uppercase tracking-widest"><Copy size={12}/> Copy</button>
+                                   </div>
+                                 </div>
+                               </div>
+                             </details>
+                           </div>
+                        ) : fullSermonTranscriptRef.current.length > 50 ? (
+                          <button
+                            onClick={handleGenerateSermonInsights}
+                            className="w-full py-4 rounded-2xl font-bold border-2 border-[var(--theme-primary)]/30 text-[var(--theme-primary)] hover:bg-[var(--theme-primary)] hover:text-white hover:shadow-lg hover:shadow-[var(--theme-primary)]/20 transition-all flex items-center justify-center gap-2"
+                          >
+                            <Sparkles size={18} /> Transform Sermon to Content
+                          </button>
+                        ) : (
+                          <div className={cn("p-4 rounded-2xl text-center text-sm", readingMode === 'dark' ? 'bg-white/5 text-gray-400' : 'bg-black/5 text-gray-500')}>
+                            Listen to a longer sermon to unlock AI Content Generation.
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     <div className={cn(
-                      "p-6 border-t",
+                      "p-6 border-t flex flex-col gap-3",
                       readingMode === 'dark' ? "border-white/10 bg-black/20" : "border-black/5 bg-gray-50"
                     )}>
-                      <button
-                        onClick={() => setSermonNotes([])}
-                        disabled={sermonNotes.length === 0}
-                        className="w-full py-4 rounded-2xl font-bold bg-white/5 hover:bg-white/10 text-gray-400 disabled:opacity-50 transition-colors"
-                      >
-                        Clear Notes
-                      </button>
+                      {(sermonNotes.length > 0 || fullSermonTranscriptRef.current) && (
+                        <button
+                          onClick={() => {
+                            setSermonNotes([]);
+                            fullSermonTranscriptRef.current = '';
+                            setSermonContent(null);
+                          }}
+                          className="w-full py-3 rounded-xl font-bold bg-white/5 hover:bg-white/10 text-gray-400 transition-colors"
+                        >
+                          Clear Session
+                        </button>
+                      )}
                     </div>
                   </motion.div>
                 </>
