@@ -40,11 +40,15 @@ export class SermonListenerService {
             };
 
             this.recognition.onerror = (event: any) => {
-                console.error("Speech recognition error", event.error);
+                console.error("Speech recognition error:", event.error);
                 if (this.onError) {
                     this.onError(event.error);
                 }
-                if (event.error !== 'no-speech') {
+                
+                if (event.error === 'network') {
+                    console.warn("Network error during speech recognition. Attempting to recover...");
+                    // We purposefully leave isListening = true so that onend's auto-restart continues
+                } else if (event.error !== 'no-speech') {
                     this.isListening = false;
                 }
             };

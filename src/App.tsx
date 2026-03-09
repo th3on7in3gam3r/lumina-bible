@@ -1010,7 +1010,10 @@ export default function App() {
     };
 
     sermonService.onError = (err) => {
-      if (err !== 'no-speech') {
+      if (err === 'network') {
+        setSermonBridgeToast("Network interrupted. Reconnecting microphone...");
+        setTimeout(() => setSermonBridgeToast(null), 4000);
+      } else if (err !== 'no-speech') {
         setIsSermonListening(false);
       }
     };
