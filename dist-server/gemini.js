@@ -340,4 +340,68 @@ Return ONLY a JSON object matching the required schema.`;
         res.status(500).json(null);
     }
 });
+router.post('/sermon-content', authenticateToken, async (req, res) => {
+    const { transcript } = req.body;
+    if (!ai)
+        return res.status(503).json(null);
+    const systemInstruction = `You are a pastoral assistant and content creator. The user has provided a raw transcript of a sermon.
+Your task is to transform this sermon into actionable, highly structured content to help the congregation engage with the message throughout the week.
+
+Provide the response matching EXACTLY the JSON schema provided, with no additional formatting or text outside the JSON.
+Keep social media quotes punchy and inspiring.
+Ensure the 7-day devotional has exactly 7 distinct days, each tying a core sermon point to a practical application and prayer.`;
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-3-flash-preview",
+            contents: `Here is the transcript of the sermon:\n\n${transcript}\n\nPlease generate the comprehensive weekly content pack now.`,
+            config: {
+                systemInstruction,
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        summary: {
+                            type: Type.OBJECT,
+                            properties: {
+                                coreTheme: { type: Type.STRING },
+                                keyTakeaways: { type: Type.ARRAY, items: { type: Type.STRING } }
+                            },
+                            required: ["coreTheme", "keyTakeaways"]
+                        },
+                        devotional: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    day: { type: Type.STRING },
+                                    theme: { type: Type.STRING },
+                                    scripture: { type: Type.STRING },
+                                    reflection: { type: Type.STRING },
+                                    prayer: { type: Type.STRING }
+                                },
+                                required: ["day", "theme", "scripture", "reflection", "prayer"]
+                            }
+                        },
+                        socialMedia: {
+                            type: Type.OBJECT,
+                            properties: {
+                                quotes: { type: Type.ARRAY, items: { type: Type.STRING } },
+                                caption: { type: Type.STRING }
+                            },
+                            required: ["quotes", "caption"]
+                        },
+                        actionSteps: { type: Type.ARRAY, items: { type: Type.STRING } }
+                    },
+                    required: ["summary", "devotional", "socialMedia", "actionSteps"]
+                }
+            }
+        });
+        const text = response.text;
+        res.json(text ? JSON.parse(text) : null);
+    }
+    catch (err) {
+        console.error("Sermon content extraction error:", err);
+        res.status(500).json(null);
+    }
+});
 export default router;

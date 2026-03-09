@@ -15,12 +15,19 @@ const ALLOWED_ORIGINS = [
     'https://lumina.biblefunland.com',
     'http://localhost:5173',
     'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:3002',
+    'http://localhost:3003',
     'http://localhost:5001'
 ];
 app.use((req, res, next) => {
     const origin = req.headers.origin;
-    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+    // Always allow locally for debugging, otherwise check allowlist
+    if (!origin || origin.startsWith('http://localhost') || ALLOWED_ORIGINS.includes(origin)) {
         res.setHeader('Access-Control-Allow-Origin', origin || '*');
+    }
+    else {
+        res.setHeader('Access-Control-Allow-Origin', '*');
     }
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
